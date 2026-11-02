@@ -78,6 +78,7 @@ const MORE = {
   pakal:    { t:"פק״לים", v: ctx => vPakal(ctx) },
   presence: { t:"טבלת נוכחות", v: ctx => vMatrix(ctx) },
   line:     { t:"מבנה, סבבים וגיבוי", v: ctx => vManage(ctx, true) },
+  help:     { t:"מדריך שימוש", v: () => vHelp() },
 };
 function vMore(ctx){
   if (UI.more && MORE[UI.more]){
@@ -100,6 +101,7 @@ function vMore(ctx){
     ["pakal", `${pkMarked} אנשים מסומנים`, ""],
     ["presence", "כל האנשים מול כל הימים", ""],
     ["line", "שמות, סבבים, מונחים, גיבוי", ""],
+    ["help", "איך עובדים, סיסמת היחידה, שיתוף וגיבוי", ""],
   ];
   return `<section><div class="list">${rows.map(([k, s, badge]) => `<button class="li" data-a="openMore" data-v="${k}"><div class="main"><div class="n">${MORE[k].t}</div><div class="s">${esc(s)}</div></div>${badge}<span class="muted" aria-hidden="true">‹</span></button>`).join("")}</div></section>`;
 }

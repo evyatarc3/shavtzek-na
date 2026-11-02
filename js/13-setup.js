@@ -33,7 +33,7 @@ function vSetup(){
   const ppl = order.map(i => { const ta = `<textarea id="wp${i}" rows="6" style="${inp}" placeholder="*כהן&#10;לוי&#10;מזרחי">${esc(WZ.people[i] || "")}</textarea>`;
     return i === WZ.mine ? `<label class="fld"><span>${esc(uname(i))} (שלך). שם בכל שורה, * בתחילת שורה = מפקד</span>${ta}</label>`
       : `<details class="panel" style="padding:10px"><summary style="cursor:pointer;font-weight:600">${esc(uname(i))} (לא חובה)</summary><div style="margin-top:8px">${ta}</div></details>`; }).join("");
-  return receiveCard() + `<section class="panel stack" style="padding:18px">
+  return startCard() + `<section class="panel stack" id="wizard" style="padding:18px">
     <div><h2 style="font-family:var(--f-display);font-weight:400;font-size:22px;margin:0 0 4px">הקמת קו חדש</h2>
     <p class="muted" style="margin:0">מתאימים את המערכת ליחידה שלכם. הכול ניתן לשינוי אחר כך בלשונית ניהול. הנתונים נשמרים רק במכשיר הזה.</p></div>
     <div class="eyebrow">המבנה</div>
@@ -63,8 +63,22 @@ function vSetup(){
       <label class="fld"><span>פק״לים (פק״ל בכל שורה)</span><textarea id="wPk" rows="7" style="${inp}">${esc(WZ.pk)}</textarea></label>
     </div>
     <div class="checks"><label><input type="checkbox" id="wEx"${WZ.ex ? " checked" : ""}>להוסיף 4 משימות לדוגמה (ש״ג, סיור, כוננות, תצפית) שאפשר לערוך</label></div>
-    <div class="row" style="margin-top:4px"><button class="btn primary" data-a="createLine">יצירת הקו</button>
-      <span style="flex:1"></span><label class="btn" for="impFile" tabindex="0">יש לי גיבוי: שחזור מקובץ</label><input type="file" id="impFile" accept=".json,application/json,text/plain" hidden data-ch="impFile"></div>
+    <div class="row" style="margin-top:4px"><button class="btn primary" data-a="createLine">יצירת הקו</button></div>
+  </section>`;
+}
+/* first screen: three ways in. Joining another commander's line is one of them, not the headline */
+function startCard(){
+  const row = (n, s) => `<div class="main"><div class="n">${n}</div><div class="s">${s}</div></div><span class="muted" aria-hidden="true">‹</span>`;
+  return `<section class="panel stack" style="padding:18px;margin-bottom:12px">
+    <div><h2 style="font-family:var(--f-display);font-weight:400;font-size:22px;margin:0 0 4px">איך מתחילים?</h2>
+    <p class="muted" style="margin:0">נוכחות, שבצ״ק משימות וצל״ם לקו. בלי שרת ובלי חשבון: הכול נשמר רק בטלפון הזה.</p></div>
+    <div class="list">
+      <button class="li" data-a="startNew">${row("הקמת קו חדש", "הקו של היחידה עוד לא קיים באפליקציה")}</button>
+      <button class="li" data-a="startJoin">${row("הצטרפות לקו של מפקד אחר", "קיבלתי עדכון מוצפן ממפקד שכבר עובד באפליקציה")}</button>
+      <label class="li" for="impFile" tabindex="0">${row("שחזור מגיבוי", "עוברים לטלפון חדש ויש קובץ גיבוי")}</label>
+    </div>
+    <input type="file" id="impFile" accept=".json,application/json,text/plain" hidden data-ch="impFile">
+    <div><button class="btn ghost sm" data-a="helpOpen" style="padding-inline:0">איך זה עובד? למדריך הקצר</button></div>
   </section>`;
 }
 const parseNums = s => [...new Set(String(s || "").split(/[^0-9]+/).map(Number).filter(n => n > 0 && n < 10))];

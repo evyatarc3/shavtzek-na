@@ -119,6 +119,14 @@ console.log('encryption');
   ok(!!t2, 'a changed character makes the update unreadable (tamper-proof)');
   const msg = `🔒 עדכון שבצ״ק נא מיוסי · 2/11 18:40\nפותחים באפליקציה\n${token}\n`;
   ok(run(`TOKEN_RE.exec(${JSON.stringify(msg)})[0]`) === token, 'the token is found inside a pasted WhatsApp message');
+  const gen = [...Array(20)].map(() => run('newUnitPass()'));
+  ok(gen.every(g => /^\d{4}-\d{4}-\d{4}-\d{4}$/.test(g)) && new Set(gen).size === 20, 'generated unit passwords are 16 digits in four groups, and differ');
+  const pin = await run('seal(updatePayload(), "4821-0937-5562-1148")');
+  const typed = await run(`unseal(${JSON.stringify(pin)}, " 4821 0937 5562 1148")`).catch(() => null);
+  ok(typed && typed.line === 'Ltestline', 'a digit password opens whether typed with dashes, spaces or neither');
+  let other2 = null; try { await run(`unseal(${JSON.stringify(pin)}, "4821-0937-5562-1149")`); } catch(e){ other2 = e; }
+  ok(other2 && other2.bad === true, '…but one wrong digit is still refused');
+  ok(run('passNorm("Unit-Pass-1")') === 'Unit-Pass-1', 'passwords with letters keep their dashes and case');
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -201,6 +201,7 @@ td.tent .cell{color:var(--muted)}
 .sheet h3{font-family:var(--f-display);font-weight:400;font-size:20px;margin:0 0 12px}
 .fld{display:flex;flex-direction:column;gap:4px;min-width:0}
 .fld>span{font-size:12.5px;color:var(--muted);font-weight:600}
+.fld>span.inrow{display:flex;gap:6px;align-items:stretch;font-size:inherit;color:inherit;font-weight:inherit}
 .fld input,.fld select,.fld textarea{border:1px solid var(--line);background:var(--surface2);border-radius:8px;padding:8px 10px;min-height:40px;width:100%}
 .fld input:focus,.fld select:focus,.fld textarea:focus{outline:2px solid var(--accent);outline-offset:0;border-color:var(--accent)}
 .fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:10px}
@@ -351,3 +352,16 @@ td.g-none .ic{color:var(--muted);font-weight:400}
 /* signed numbers (+2 / -7) must read left-to-right inside Hebrew text */
 .num,.vnums b,.cday .ln.big,.dchip .dn,.li .need b,.tp-need b,.stat .v,.ucell,.dtab td.gap,.atab td.num,.akv b.num{direction:ltr;unicode-bidi:isolate}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}}
+
+/* usage guide */
+.guide{display:flex;flex-direction:column;gap:8px}
+.guide details{padding:0}
+.guide summary{cursor:pointer;font-weight:600;padding:13px 14px;list-style:none;display:flex;align-items:center;gap:8px}
+.guide summary::-webkit-details-marker{display:none}
+.guide summary::after{content:"‹";margin-inline-start:auto;color:var(--muted);transition:transform .15s}
+.guide details[open] summary::after{transform:rotate(-90deg)}
+.guide .gbody{padding:0 14px 14px;display:flex;flex-direction:column;gap:8px;line-height:1.55}
+.guide .gbody p{margin:0}
+.guide .gbody ul,.guide .gbody ol{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:5px}
+.guide .gkey{background:var(--accent-soft);border-radius:10px;padding:10px 12px}
+.guide .glink{font-size:12.5px;direction:ltr;unicode-bidi:isolate;word-break:break-all}
