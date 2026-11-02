@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- The app talks to nothing outside itself: no servers, no fonts or scripts from elsewhere. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>שבצ״ק נא</title>
+<meta name="description" content="לו״ז, נוכחות ושבצ״ק למפקדים. הנתונים נשמרים רק בטלפון.">
+<meta name="theme-color" content="#3E5A27">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="שבצ״ק נא">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="app" dir="rtl" lang="he" id="app">
+  <header class="top">
+    <div class="top-row">
+      <h1 class="brand"><span id="brandName">שבצ״ק נא</span><small id="sub">טוען נתונים…</small></h1>
+      <div id="stateChip" class="state-chip none"><span class="dot"></span><span>—</span></div>
+    </div>
+    <div id="roBanner" class="ro-banner" hidden></div>
+    <nav class="nav" id="nav" aria-label="ניווט">
+      <button data-tab="today" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16.5 9.5"/></svg>היום</button>
+      <button data-tab="ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M10 9.3a2 2 0 1 1 2.7 1.9c-.5.2-.7.5-.7 1v.3" stroke-linecap="round"/><circle cx="12" cy="14.4" r=".5" fill="currentColor"/></svg>שאל</button>
+      <button data-tab="matrix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M7 14h2M11 14h2M15 14h2M7 17h2M11 17h2"/></svg>לוח</button>
+      <button data-tab="roster"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>שבצ״ק</button>
+      <button data-tab="more"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>עוד</button>
+    </nav>
+  </header>
+  <main id="main"></main>
+</div>
+<div id="sheetHost"></div>
+<div id="toastHost"></div>
+<script src="js/01-utils-store.js"></script>
+<script src="js/02-engine.js"></script>
+<script src="js/03-insights.js"></script>
+<script src="js/04-shell.js"></script>
+<script src="js/05-calendar.js"></script>
+<script src="js/06-day.js"></script>
+<script src="js/07-board.js"></script>
+<script src="js/08-ask.js"></script>
+<script src="js/09-roster.js"></script>
+<script src="js/10-manage.js"></script>
+<script src="js/11-gear.js"></script>
+<script src="js/12-sheets.js"></script>
+<script src="js/13-setup.js"></script>
+<script src="js/14-actions.js"></script>
+<script src="js/15-share.js"></script>
+<script src="js/16-rulebook.js"></script>
+<script src="js/17-pwa.js"></script>
+<script src="js/99-boot.js"></script>
+</body>
+</html>

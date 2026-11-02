@@ -1,0 +1,7 @@
+node_modules
+tests/shots/
+.DS_Store
+# real unit data must never be committed: keep exports and backups out of the repo
+*.backup.json
+shabtzak-backup-*.json
+shabtzak-update-*.txt

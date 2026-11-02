@@ -1,0 +1,453 @@
+{
+ "config": {
+  "lineStart": "2026-11-01",
+  "lineEnd": "2026-12-12",
+  "myPlatoon": 1,
+  "groups": [
+   [
+    1,
+    2
+   ],
+   [
+    3
+   ]
+  ],
+  "platoonNames": {
+   "1": "מחלקה 1",
+   "2": "מחלקה 2",
+   "3": "מחלקה 3"
+  },
+  "blocks": [
+   {
+    "id": "b0",
+    "start": "2026-11-01",
+    "end": "2026-11-07",
+    "home": "none"
+   },
+   {
+    "id": "b1",
+    "start": "2026-11-08",
+    "end": "2026-11-14",
+    "home": "12"
+   },
+   {
+    "id": "b2",
+    "start": "2026-11-15",
+    "end": "2026-11-21",
+    "home": "3"
+   },
+   {
+    "id": "b3",
+    "start": "2026-11-22",
+    "end": "2026-11-28",
+    "home": "12"
+   },
+   {
+    "id": "b4",
+    "start": "2026-11-29",
+    "end": "2026-12-05",
+    "home": "3"
+   },
+   {
+    "id": "b5",
+    "start": "2026-12-06",
+    "end": "2026-12-12",
+    "home": "12"
+   }
+  ],
+  "events": [],
+  "lineId": "Ltestline",
+  "settings": {
+   "minRest": 8,
+   "minCmd": 2,
+   "nightFrom": 22,
+   "nightTo": 6
+  },
+  "pakalim": [
+   {
+    "id": "k0",
+    "name": "מאג",
+    "min": 0
+   },
+   {
+    "id": "k1",
+    "name": "נגב",
+    "min": 0
+   },
+   {
+    "id": "k2",
+    "name": "חובש",
+    "min": 1
+   },
+   {
+    "id": "k3",
+    "name": "נהג",
+    "min": 0
+   }
+  ],
+  "gearItems": [
+   {
+    "id": "g0",
+    "name": "נשק"
+   },
+   {
+    "id": "g1",
+    "name": "משקפת"
+   }
+  ]
+ },
+ "soldiers": {
+  "s1_0": {
+   "name": "אלון",
+   "platoon": 1,
+   "role": "mm",
+   "tags": [],
+   "absences": [],
+   "id": "s1_0"
+  },
+  "s1_1": {
+   "name": "ברק",
+   "platoon": 1,
+   "role": "smm",
+   "tags": [],
+   "absences": [],
+   "id": "s1_1"
+  },
+  "s1_2": {
+   "name": "גיל",
+   "platoon": 1,
+   "role": "cmd",
+   "tags": [
+    "חובש"
+   ],
+   "absences": [],
+   "id": "s1_2"
+  },
+  "s1_3": {
+   "name": "דור",
+   "platoon": 1,
+   "role": "cmd",
+   "tags": [],
+   "absences": [],
+   "id": "s1_3"
+  },
+  "s1_4": {
+   "name": "הראל",
+   "platoon": 1,
+   "role": "cmdp",
+   "tags": [],
+   "absences": [],
+   "id": "s1_4"
+  },
+  "s1_5": {
+   "name": "ויקטור",
+   "platoon": 1,
+   "role": "soldier",
+   "tags": [],
+   "absences": [],
+   "id": "s1_5"
+  },
+  "s1_6": {
+   "name": "זיו",
+   "platoon": 1,
+   "role": "soldier",
+   "tags": [
+    "נהג"
+   ],
+   "absences": [],
+   "id": "s1_6"
+  },
+  "s1_7": {
+   "name": "חן",
+   "platoon": 1,
+   "role": "soldier",
+   "tags": [
+    "נהג"
+   ],
+   "absences": [],
+   "id": "s1_7"
+  },
+  "s1_8": {
+   "name": "טל",
+   "platoon": 1,
+   "role": "soldier",
+   "tags": [
+    "מאג"
+   ],
+   "absences": [],
+   "id": "s1_8"
+  },
+  "s1_9": {
+   "name": "יואב",
+   "platoon": 1,
+   "role": "soldier",
+   "tags": [
+    "נגב"
+   ],
+   "absences": [],
+   "id": "s1_9"
+  },
+  "s1_10": {
+   "name": "כפיר",
+   "platoon": 1,
+   "role": "soldier",
+   "tags": [],
+   "absences": [
+    {
+     "id": "a1",
+     "kind": "flight",
+     "from": "2026-11-16",
+     "to": "2026-11-18",
+     "status": "fixed",
+     "reason": ""
+    }
+   ],
+   "id": "s1_10"
+  },
+  "s1_11": {
+   "name": "ליאם",
+   "platoon": 1,
+   "role": "soldier",
+   "tags": [],
+   "absences": [
+    {
+     "id": "a2",
+     "kind": "request",
+     "from": "2026-11-19",
+     "to": "2026-11-19",
+     "status": "request",
+     "reason": ""
+    }
+   ],
+   "id": "s1_11"
+  },
+  "s1_12": {
+   "name": "מתן",
+   "platoon": 1,
+   "role": "soldier",
+   "tags": [
+    "חובש"
+   ],
+   "absences": [],
+   "id": "s1_12"
+  },
+  "s1_13": {
+   "name": "נועם",
+   "platoon": 1,
+   "role": "soldier",
+   "tags": [],
+   "absences": [],
+   "id": "s1_13"
+  },
+  "s1_14": {
+   "name": "סהר",
+   "platoon": 1,
+   "role": "soldier",
+   "tags": [],
+   "absences": [],
+   "id": "s1_14"
+  },
+  "s1_15": {
+   "name": "עומר",
+   "platoon": 1,
+   "role": "soldier",
+   "tags": [],
+   "absences": [],
+   "id": "s1_15"
+  },
+  "s2_0": {
+   "name": "פלג",
+   "platoon": 2,
+   "role": "cmd",
+   "tags": [],
+   "absences": [],
+   "id": "s2_0"
+  },
+  "s2_1": {
+   "name": "צור",
+   "platoon": 2,
+   "role": "soldier",
+   "tags": [],
+   "absences": [],
+   "id": "s2_1"
+  },
+  "s2_2": {
+   "name": "קובי",
+   "platoon": 2,
+   "role": "soldier",
+   "tags": [],
+   "absences": [],
+   "id": "s2_2"
+  },
+  "s2_3": {
+   "name": "רון",
+   "platoon": 2,
+   "role": "soldier",
+   "tags": [
+    "נהג"
+   ],
+   "absences": [],
+   "id": "s2_3"
+  },
+  "s2_4": {
+   "name": "שגיא",
+   "platoon": 2,
+   "role": "soldier",
+   "tags": [],
+   "absences": [],
+   "id": "s2_4"
+  },
+  "s2_5": {
+   "name": "תומר",
+   "platoon": 2,
+   "role": "soldier",
+   "tags": [],
+   "absences": [],
+   "id": "s2_5"
+  },
+  "s2_6": {
+   "name": "אסף",
+   "platoon": 2,
+   "role": "soldier",
+   "tags": [],
+   "absences": [],
+   "id": "s2_6"
+  },
+  "s2_7": {
+   "name": "בני",
+   "platoon": 2,
+   "role": "soldier",
+   "tags": [],
+   "absences": [],
+   "id": "s2_7"
+  },
+  "s2_8": {
+   "name": "גלעד",
+   "platoon": 2,
+   "role": "soldier",
+   "tags": [],
+   "absences": [],
+   "id": "s2_8"
+  },
+  "s2_9": {
+   "name": "דניאל",
+   "platoon": 2,
+   "role": "soldier",
+   "tags": [],
+   "absences": [],
+   "id": "s2_9"
+  }
+ },
+ "tasks": {
+  "t_gate": {
+   "name": "ש״ג",
+   "kind": "guard",
+   "size": 1,
+   "cmd": 0,
+   "start": 6,
+   "len": 4,
+   "hours": 24,
+   "days": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "platoons": [
+    1,
+    2
+   ],
+   "needs": [],
+   "order": 0,
+   "rest": 8,
+   "color": "#5B7FD8",
+   "id": "t_gate"
+  },
+  "t_obs": {
+   "name": "תצפית",
+   "kind": "guard",
+   "size": 2,
+   "cmd": 0,
+   "start": 0,
+   "len": 4,
+   "hours": 24,
+   "days": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "platoons": [
+    1,
+    2
+   ],
+   "needs": [],
+   "order": 1,
+   "rest": 8,
+   "color": "#B07A1E",
+   "id": "t_obs"
+  },
+  "t_patrol": {
+   "name": "סיור",
+   "kind": "mission",
+   "size": 3,
+   "cmd": 1,
+   "start": 6,
+   "len": 12,
+   "hours": 24,
+   "days": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "platoons": [
+    1,
+    2
+   ],
+   "needs": [],
+   "order": 2,
+   "rest": 8,
+   "color": "#C4577A",
+   "id": "t_patrol"
+  },
+  "t_drive": {
+   "name": "נהג תורן",
+   "kind": "mission",
+   "size": 1,
+   "cmd": 0,
+   "start": 8,
+   "len": 12,
+   "hours": 24,
+   "days": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "platoons": [
+    1,
+    2
+   ],
+   "needs": [],
+   "order": 3,
+   "rest": 8,
+   "color": "#3E8E6A",
+   "id": "t_drive"
+  }
+ },
+ "rules": {},
+ "rosters": {}
+}
