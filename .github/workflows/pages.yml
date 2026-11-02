@@ -1,4 +1,4 @@
-# Tests the app, then publishes it to GitHub Pages: https://<user>.github.io/shabtzak-na/
+# Tests the app, then publishes it to GitHub Pages: https://<user>.github.io/shavtzek-na/
 # One-time setup: Settings → Pages → Source: "GitHub Actions".
 name: Publish the app
 
