@@ -26,8 +26,11 @@ async function phone(name, seed, extra = {}){
 const ev = (p, f, a) => p.evaluate(f, a);
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
-console.log('first phone: rulebook');
+console.log('first phone: tabs and rulebook');
 const A = await phone('A', fixture());
+const screens = [];
+for (const tab of ['ask', 'matrix', 'roster', 'more', 'today']){ await A.p.click(`#nav button[data-tab="${tab}"]`); await wait(150); screens.push(await ev(A.p, () => UI.tab + ':' + document.querySelector('#main').innerHTML.length)); }
+ok(new Set(screens.map(s => s.split(':')[1])).size === 5 && screens.every((s, i) => s.startsWith(['ask', 'matrix', 'roster', 'more', 'today'][i])), 'each tab in the bottom bar opens its own screen');
 await ev(A.p, () => ACT.openMore('rulebook')); await wait(150);
 ok(await A.p.isVisible('text=כללי לכל המשימות'), 'the rulebook screen opens from עוד');
 await A.p.fill('#rbRN', '10'); await A.p.fill('#rbPW', '6'); await A.p.click('[data-a="rbSaveGeneral"]'); await wait(100);
@@ -54,6 +57,7 @@ await A.p.screenshot({ path: path.join(SHOTS, 'share.png'), fullPage:true });
 console.log('second phone: receives the line');
 const B = await phone('B', null, Object.assign({}, devices['iPhone 13'], { locale:'he-IL', timezoneId:'Asia/Jerusalem' }));
 ok(await B.p.isVisible('text=קיבלתם עדכון ממפקד?'), 'a new phone offers to receive an update on the first screen');
+ok(!(await B.p.isVisible('#nav')), 'no tab bar before there is a line (nothing to switch to yet)');
 ok(await B.p.isVisible('text=כדאי להתקין את האפליקציה'), 'on iPhone it suggests installing to the home screen');
 await B.p.screenshot({ path: path.join(SHOTS, 'new-phone.png') });
 await B.p.fill('#shIn', text); await B.p.click('[data-a="shOpen"]'); await wait(200);
@@ -64,6 +68,7 @@ ok(await B.p.isVisible('[data-a="shReplace"]'), 'the right password shows what w
 await B.p.click('[data-a="shReplace"]'); await wait(300);
 ok(await ev(B.p, () => Object.keys(S.soldiers).length === 26 && S.tasks.t_gate.queue.on && S.soldiers.s1_5.exempt.length === 1), 'B now has the whole line, rulebook included');
 ok(await ev(B.p, () => cfg().lineId) === await ev(A.p, () => cfg().lineId), 'both phones share the same line id');
+ok(await B.p.isVisible('#nav'), 'the tab bar appears once the line is in');
 
 console.log('both edit, B sends back, A merges');
 await ev(B.p, () => { updPerson('s1_4', p => { p.absences = (p.absences || []).concat([{ id:'a_b', kind:'request', from:'2026-11-04', to:'2026-11-04', status:'request', reason:'חתונה' }]); }); genDates(['2026-11-03']); });

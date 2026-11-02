@@ -23,6 +23,8 @@ function render(){
   else if (cfg() && backupDue()) rb.innerHTML = `${esc(lastBackupText())} הנתונים שמורים רק במכשיר הזה. <button class="btn sm" style="margin-inline-start:6px" data-a="backupFile">גיבוי עכשיו</button>`;
   else if (pb) rb.innerHTML = pb;
   else rb.hidden = true;
+  // until a line exists every tab would show the setup screen, so the tab bar waits for it
+  $("#nav").hidden = !isLoaded() || !cfg();
   if (!isLoaded()){ main.innerHTML = `<div class="empty-state"><b>טוען את נתוני הקו…</b>רגע אחד</div>`; return; }
   if (!cfg() && APP_MODE === "local"){ $("#sub").textContent = "הקמת קו חדש"; $("#brandName").textContent = APP_NAME; $("#stateChip").hidden = true; main.innerHTML = vSetup(); return; }
   $("#stateChip").hidden = false;
