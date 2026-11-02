@@ -1,6 +1,6 @@
 /* שבצ״ק נא · offline cache. Every file of the app is kept on the phone, so it opens with no signal.
    VERSION and ASSETS are written by `node tools/stamp.mjs`; run it after changing any file. */
-const VERSION = "e5a0a83eed91";
+const VERSION = "653fc972fa4d";
 const ASSETS = [
   "./",
   "index.html",
@@ -47,7 +47,11 @@ const ASSETS = [
 ];
 const CACHE = "shabtzak-" + VERSION;
 
-self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS))); });
+/* "reload" skips the browser's HTTP cache: GitHub Pages lets files sit there for 10 minutes, and a new
+   version that cached an old file would keep serving it until the next version */
+self.addEventListener("install", e => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: "reload" })))));
+});
 self.addEventListener("activate", e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith("shabtzak-") && k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
