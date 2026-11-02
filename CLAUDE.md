@@ -63,7 +63,8 @@ Engine entry points: `ruleReasons()` (static eligibility), `restAfter()`, caps a
 ## Encrypted update format
 
 `SHBZ1.` + base64url(`[1, zipped]` + salt16 + iv12 + AES-GCM ciphertext). Key: PBKDF2-SHA256,
-250,000 iterations, from the unit password. Payload: `{app:"shabtzak", kind:"update", v:2, from, at,
+250,000 iterations, from the unit password after `passNorm()` (NFC, trim; a digits-only password drops spaces
+and dashes, so the generated `1234-5678-…` codes can be typed either way). Payload: `{app:"shabtzak", kind:"update", v:2, from, at,
 line, lineName, config, soldiers, tasks, rules, rosters, tomb}`; deflate-raw before encryption.
 Merge: newer `_t` wins per record; tombstones delete and block stale copies; a different `line` → replace.
 
