@@ -111,6 +111,47 @@ await A.p.screenshot({ path: path.join(SHOTS, 'roster.png') });
 const [dl] = await Promise.all([A.p.waitForEvent('download', { timeout:8000 }).catch(() => null), ev(A.p, () => exportXlsx())]);
 ok(dl && /\.xlsx$/.test(dl.suggestedFilename()) && fs.statSync(await dl.path()).size > 5000, 'Excel export works under the strict security policy');
 
+console.log('task kinds, quick sheet');
+await ev(A.p, () => { genDates(['2026-11-03']); UI.tab = 'roster'; UI.rosterDate = '2026-11-03'; UI.rosterBy = 'task'; render(); }); await wait(200);
+// ghost task from the template
+await ev(A.p, () => ACT.editTask()); await wait(120);
+await A.p.click('[data-a="tTpl"][data-v="3"]'); await wait(120);
+ok(await A.p.isChecked('#sheetHost input[name="tgh"][value="t_gate"]'), 'the כרמל template is a ghost task already tied to ש״ג');
+await A.p.click('[data-a="saveTask"]'); await wait(150);
+ok(await ev(A.p, () => { const g = tasksList().find(t => t.ghost); return !!g && g.ghost.of[0] === 't_gate' && dayText('2026-11-03').includes('מי שתופס ש״ג תופס גם כרמל'); }), '…saved, and the WhatsApp text says "מי שתופס ש״ג תופס גם כרמל"');
+// company task: a part per platoon
+await ev(A.p, () => ACT.editTask()); await wait(120);
+await A.p.click('[data-a="tTpl"][data-v="7"]'); await wait(150);
+ok(await A.p.locator('#sheetHost .part-ed').count() === 3, 'the company template opens with a part for each platoon');
+await A.p.click('[data-a="stp"][data-v="tpS0"][data-d="1"]'); await A.p.click('[data-a="tPartPak"][data-i="0"][data-v="חובש"]'); await wait(120);
+ok(await ev(A.p, () => document.getElementById('tpS0').value === '5') && await A.p.isVisible('[data-a="tPartPak"][data-i="0"][aria-pressed="true"]'), 'steppers and פק״ל chips set each part');
+await A.p.fill('#tpN0', 'ציר צפוני'); await A.p.fill('#tDt0', '2026-11-03');
+await A.p.screenshot({ path: path.join(SHOTS, 'task-company.png'), fullPage:true });
+await A.p.click('[data-a="saveTask"]'); await wait(200);
+ok(await A.p.isVisible('text=לשבץ אותה עכשיו?'), 'after saving, the app offers to put it into the roster');
+await A.p.click('[data-a="genGo"] >> nth=0'); await wait(300);
+ok(await ev(A.p, () => UI.tab === 'roster') && await A.p.isVisible('.plabel >> text=ציר צפוני'), '…and the roster shows each part with its platoon');
+ok(await ev(A.p, () => { const t = tasksList().find(x => x.parts); return S.rosters['2026-11-03'].slots.filter(sl => sl.t === t.id).every(sl => sl.p.filter(Boolean).every(id => !sl.pl || S.soldiers[id].platoon === sl.pl)); }), 'parts are manned by their own platoon');
+await A.p.screenshot({ path: path.join(SHOTS, 'roster-kinds.png'), fullPage:true });
+// manual slot sheet: free people first
+await A.p.click('.task-card [data-a="slot"] >> nth=0'); await wait(150);
+ok(/בלי משמרות היום|כבר/.test(await A.p.locator('#sheetHost .cand >> nth=0').innerText()), 'the replacement list says who has no shift that day: ' + (await A.p.locator('#sheetHost .cand >> nth=0').innerText()).split('\n').slice(-1)[0]);
+await ev(A.p, () => closeSheet());
+// quick sheet from the "by person" view
+await ev(A.p, () => { UI.rosterBy = 'person'; render(); }); await wait(150);
+const qp = await A.p.getAttribute('table [data-a="quick"] >> nth=-1', 'data-v');
+await A.p.click(`table [data-a="quick"][data-v="${qp}"]`); await wait(150);
+ok(await A.p.isVisible('#sheetHost >> text=שיבוץ ידני'), 'tapping a soldier opens the quick sheet');
+await A.p.click('[data-a="qRole"][data-v="cmdp"]'); await wait(120);
+ok(await ev(A.p, id => S.soldiers[id].role === 'cmdp', qp), 'the role changes with one tap');
+await A.p.screenshot({ path: path.join(SHOTS, 'quick.png') });
+const target = await A.p.getAttribute('#sheetHost .qslot[data-a="qPut"]:not(.bad) >> nth=0', 'data-si');
+await A.p.click(`#sheetHost .qslot[data-a="qPut"][data-si="${target}"]`); await wait(250);
+if (await A.p.isVisible('text=במקום מי?')){ await A.p.click('[data-a="qSwap"] >> nth=0'); await wait(250); }
+ok(await ev(A.p, ([id, si]) => { const sl = S.rosters['2026-11-03'].slots[Number(si)]; return sl.lock && sl.p.includes(id); }, [qp, target]), 'a manual assignment is locked in');
+ok(await ev(A.p, id => S.rosters['2026-11-03'].slots.every((sl, i) => !sl.p.includes(id) || slotConflicts(S.soldiers[id], '2026-11-03', sl, i).filter(w => /חופף|מנוחה/.test(w)).length === 0), qp), '…and the rest of the day was planned around it, with no clash for that soldier');
+await ev(A.p, () => closeSheet());
+
 console.log('offline');
 await wait(800);
 const controlled = await ev(A.p, () => navigator.serviceWorker.ready.then(() => true));

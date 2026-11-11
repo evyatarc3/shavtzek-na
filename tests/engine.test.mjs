@@ -103,6 +103,72 @@ console.log('merging updates');
   const other = JSON.parse(B.run('JSON.stringify(updatePayload())')); other.line = 'Lsomeoneelse';
   ok(A.run(`mergePlan(${JSON.stringify(other)}).otherLine`) === true, 'an update from a different line is flagged');
 }
+console.log('fair roster');
+{
+  const { run } = await app(f => {
+    const P = Object.values(f.soldiers);
+    P[5].absences = [{ id:'a1', kind:'vacation', from:'2026-11-03', to:'2026-11-04', status:'fixed' }];
+    P[9].from = '2026-11-04';
+    P[14].absences = [{ id:'a2', kind:'other', from:'2026-11-16', to:'2026-11-18', status:'fixed' }];
+  });
+  const t0 = Date.now();
+  const m = JSON.parse(run(`(() => {
+    const days = lineDays().filter(d => dayState(d) === "duty"), blocks = {};
+    for (const d of days) (blocks[blockOf(d).id] = blocks[blockOf(d).id] || []).push(d);
+    for (const ds of Object.values(blocks)){ const r = generate(ds); for (const d of ds) put("rosters/" + d, r[d]); }
+    const L = {}, N = {}, pres = {}, per = {}; let gaps = 0, idleDbl = 0;
+    for (const d of days){
+      for (const p of people()) if (present(p, d) && jointPl().includes(p.platoon)) pres[p.id] = (pres[p.id] || 0) + 1;
+      for (const sl of S.rosters[d].slots) for (const id of sl.p) if (id){ L[id] = (L[id] || 0) + slotLoad(S.tasks[sl.t], sl); if (sl.night) N[id] = (N[id] || 0) + 1; per[d + id] = (per[d + id] || 0) + 1; } else gaps++;
+      const ps = people().filter(p => present(p, d) && jointPl().includes(p.platoon));
+      const zero = ps.filter(p => !per[d + p.id]).length, dbl = ps.filter(p => (per[d + p.id] || 0) >= 2).length; if (zero && dbl) idleDbl += Math.min(zero, dbl);
+    }
+    const ids = Object.keys(pres).filter(id => S.soldiers[id].role === "soldier"), P = ids.reduce((a, id) => a + pres[id], 0) / ids.length;
+    const adj = ids.map(id => (L[id] || 0) * P / pres[id]), nights = ids.map(id => (N[id] || 0) * P / pres[id]);
+    return JSON.stringify({ days: days.length, gaps, idleDbl, lo: Math.min(...adj), hi: Math.max(...adj), nlo: Math.min(...nights), nhi: Math.max(...nights) });
+  })()`));
+  const ms = Date.now() - t0;
+  ok(m.gaps === 0, `${m.days} days of three tasks with no empty seat`);
+  ok((m.hi - m.lo) / m.hi < 0.1, `soldiers' load, relative to days in, within 10% of each other (${m.lo.toFixed(0)}–${m.hi.toFixed(0)}; was 158–205)`);
+  ok(m.nhi - m.nlo <= 3, `nights spread evenly (${m.nlo.toFixed(1)}–${m.nhi.toFixed(1)} per person; was 2–18)`);
+  ok(m.idleDbl <= 60, `rarely someone idle while another doubles up (${m.idleDbl} times in ${m.days} days; was 145)`);
+  ok(ms < 4000, `three rotations generated in ${ms} ms`);
+}
+console.log('manual seats are planned around');
+{
+  const { run } = await app();
+  const d = '2026-11-03', d2 = '2026-11-04';
+  run(`for (const [k, r] of Object.entries(generate(["${d}", "${d2}"]))) put("rosters/" + k, r)`);
+  // force s2_4 into the 14:00 gate shift on the 3rd and the 06:00 one on the 4th, then generate both days again
+  run(`(() => { for (const [dd, st] of [["${d}", 14], ["${d2}", 6]]){ const r = JSON.parse(JSON.stringify(S.rosters[dd])); const sl = r.slots.find(x => x.t === "t_gate" && x.s === st); sl.p = ["s2_4"]; sl.lock = true; put("rosters/" + dd, r); } })()`);
+  run(`for (const [k, r] of Object.entries(generate(["${d}", "${d2}"]))) put("rosters/" + k, r)`);
+  const mine = JSON.parse(run(`JSON.stringify(["${d}", "${d2}"].flatMap(dd => S.rosters[dd].slots.filter(sl => sl.p.includes("s2_4")).map(sl => ({ S: diffDays(cfg().lineStart, dd) * 24 + sl.s, len: sl.len, t: sl.t, lock: !!sl.lock }))).sort((a, b) => a.S - b.S))`));
+  ok(mine.filter(x => x.lock).length === 2, 'both forced seats are kept');
+  const gapsOk = mine.every((x, i) => !i || x.S - (mine[i - 1].S + mine[i - 1].len) >= 8);
+  ok(gapsOk, `every other seat of that soldier keeps 8 hours of rest from the forced ones, before and after (${mine.length} seats)`);
+}
+console.log('task kinds');
+{
+  const { run } = await app(f => {
+    f.tasks.t_carmel = { id:'t_carmel', name:'כרמל', ghost:{ of:['t_gate'], note:'' }, days:[], order:9 };
+    f.tasks.t_sweep = { id:'t_sweep', name:'סריקה פלוגתית', kind:'mission', start:6, len:4, hours:4, dates:['2026-11-03'], days:[], order:10,
+      parts:[ { id:'p1', name:'ציר צפוני', pl:1, size:5, cmd:1, needs:[{ tag:'חובש', count:1 }] }, { id:'p2', name:'אבטחה', pl:2, size:4, cmd:1, needs:[] }, { id:'p3', name:'פיצוץ', pl:3, size:3, cmd:0, needs:[] } ] };
+  });
+  const d = '2026-11-03', res = JSON.parse(run(`JSON.stringify(generate(["${d}", "2026-11-04"]))`));
+  ok(!res[d].slots.some(s => s.t === 't_carmel') && run(`taskNeed(S.tasks.t_carmel)`) === 0, 'a ghost task adds no seats and no demand');
+  ok(run(`ghostLine(S.tasks.t_carmel)`) === 'מי שתופס ש״ג תופס גם כרמל', 'its default sentence: "מי שתופס ש״ג תופס גם כרמל"');
+  run(`put("rosters/${d}", ${JSON.stringify(res[d])}); CTX = buildCtx();`);
+  ok(run(`dayText("${d}")`).includes('*כרמל*\nמי שתופס ש״ג תופס גם כרמל'), 'the WhatsApp text carries the sentence under the task name');
+  const sw = res[d].slots.filter(s => s.t === 't_sweep');
+  ok(sw.length === 3 && !res['2026-11-04'].slots.some(s => s.t === 't_sweep'), 'the company task runs only on its date, one slot per part');
+  const plOf = id => run(`S.soldiers["${id}"].platoon`);
+  ok(sw.filter(s => s.pl).every(s => s.p.filter(Boolean).every(id => plOf(id) === s.pl)), 'each part is filled only from its own platoon');
+  const p1 = sw.find(s => s.part === 'p1');
+  ok(p1.p.filter(Boolean).length === 5 && p1.p.some(id => run(`isCmd(S.soldiers["${id}"])`)) && p1.p.some(id => run(`hasTag(S.soldiers["${id}"], "חובש")`)), 'a part gets its own size, commander and medic');
+  const p3 = sw.find(s => s.part === 'p3');
+  ok(p3.w.some(w => w.includes('אין חיילים במחלקה 3')), 'a part whose platoon has nobody says so: ' + p3.w.join(' · '));
+  ok(run(`demand("${d}").need`) === run(`demand("2026-11-04").need`) + 12, 'the company task adds its 12 people to that day\'s demand only');
+}
 console.log('encryption');
 {
   const { run } = await app();

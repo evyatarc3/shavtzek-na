@@ -68,7 +68,26 @@ function unitCount(pl, d){ if (!platoonIn(pl, d)) return 0; const m = unitManual
 
 /* ================= engine: demand ================= */
 function tasksList(){ return Object.values(S.tasks).sort((a,b) => (a.order ?? 99) - (b.order ?? 99) || String(a.name).localeCompare(String(b.name), "he")); }
-function taskActive(t, d){ return (t.days || [0,1,2,3,4,5,6]).includes(dow(d)) && (t.platoons || jointPl()).some(pl => platoonIn(pl, d)); }
+/* Task kinds: regular (size/cmd/needs per shift), company (t.parts: a part per platoon, each with its own
+   size/cmd/needs) and ghost (t.ghost = {of:[task ids], note}: whoever holds those tasks holds this one too;
+   no slots, no demand, no load). t.dates (one-time dates) replaces t.days when set. */
+const isGhost = t => !!(t && t.ghost);
+const taskParts = t => (t && Array.isArray(t.parts) && t.parts.length) ? t.parts : null;
+function taskComp(t){
+  const parts = taskParts(t);
+  if (!parts) return { size: Math.max(1, Number(t.size) || 1), cmd: Number(t.cmd) || 0, needs: t.needs || [] };
+  const needs = {}; for (const pt of parts) for (const n of (pt.needs || [])) if (n.tag) needs[n.tag] = (needs[n.tag] || 0) + (Number(n.count) || 1);
+  return { size: parts.reduce((a, pt) => a + Math.max(1, Number(pt.size) || 1), 0), cmd: parts.reduce((a, pt) => a + (Number(pt.cmd) || 0), 0), needs: Object.entries(needs).map(([tag, count]) => ({ tag, count })) };
+}
+function taskPlatoons(t){
+  const parts = taskParts(t); if (!parts) return t.platoons || jointPl();
+  const s = new Set(); for (const pt of parts) (pt.pl ? [Number(pt.pl)] : (t.platoons || jointPl())).forEach(n => s.add(Number(n))); return [...s];
+}
+const taskOnDay = (t, d) => (t.dates && t.dates.length) ? t.dates.includes(d) : (t.days || [0,1,2,3,4,5,6]).includes(dow(d));
+function taskActive(t, d){ return !isGhost(t) && taskOnDay(t, d) && taskPlatoons(t).some(pl => platoonIn(pl, d)); }
+/* ghost tasks riding on a host that runs that day */
+function ghostsOn(d){ return tasksList().filter(g => isGhost(g) && (g.ghost.of || []).some(id => S.tasks[id] && taskActive(S.tasks[id], d))); }
+function ghostLine(g){ const hosts = (g.ghost.of || []).map(id => (S.tasks[id] || {}).name).filter(Boolean); return (g.ghost.note || "").trim() || `מי שתופס ${hosts.join(" או ")} תופס גם ${g.name}`; }
 /* A task runs `hours` a day (max 24) starting at `start`, split into shifts of `len` hours.
    Older records only have `count`; hours = count × len, capped at 24. */
 function taskShape(t){
@@ -77,7 +96,7 @@ function taskShape(t){
   const count = Math.ceil(hours / len);
   const rest = t.rest ?? settings().minRest;
   const teams = Math.max(1, Math.min(count, Math.ceil((len + rest) / len)));   // crews that rotate so each gets its rest
-  return { len, hours, count, rest, teams, start: Number(t.start) || 0, size: Number(t.size) || 1 };
+  return { len, hours, count, rest, teams, start: Number(t.start) || 0, size: isGhost(t) ? 0 : taskComp(t).size };
 }
 function taskMult(t){ return taskShape(t).teams; }
 function taskNeed(t){ const s = taskShape(t); return s.size * s.teams; }
@@ -85,8 +104,8 @@ function taskShiftsText(t){ const s = taskShape(t); const out = []; for (let i =
 function demand(d){
   let need = 0, cmd = 0; const tags = {};
   for (const t of tasksList()) if (taskActive(t, d)){
-    const m = taskMult(t); need += (t.size || 0) * m; cmd += (t.cmd || 0) * m;
-    for (const n of (t.needs || [])) if (n.tag) tags[n.tag] = (tags[n.tag] || 0) + (n.count || 1) * m;
+    const m = taskMult(t), c = taskComp(t); need += c.size * m; cmd += c.cmd * m;
+    for (const n of c.needs) if (n.tag) tags[n.tag] = (tags[n.tag] || 0) + (n.count || 1) * m;
   }
   return { need, cmd, tags };
 }
@@ -116,15 +135,26 @@ function nightHours(st, len){ const s = settings(); let n = 0; for (let h = st; 
 function buildSlots(d){
   const c = cfg(), di = diffDays(c.lineStart, d), out = [];
   for (const t of tasksList()) if (taskActive(t, d)){
-    const sh = taskShape(t);
+    const sh = taskShape(t), parts = taskParts(t);
     for (let i = 0; i < sh.count; i++){
       const st = sh.start + i * sh.len, ln = Math.min(sh.len, sh.hours - i * sh.len);
-      out.push({ k: t.id + "@" + st, t: t.id, s: st, len: ln, S: di * 24 + st, E: di * 24 + st + ln, size: sh.size,
-        night: nightHours(st, ln) * 2 >= ln, pri: (t.cmd || 0) * 10 + (t.needs || []).length * 5 + sh.size });
+      const base = { t: t.id, s: st, len: ln, S: di * 24 + st, E: di * 24 + st + ln, night: nightHours(st, ln) * 2 >= ln };
+      if (parts) for (const pt of parts){
+        const size = Math.max(1, Number(pt.size) || 1), cmd = Number(pt.cmd) || 0, needs = pt.needs || [];
+        out.push(Object.assign({}, base, { k: t.id + "@" + st + "#" + pt.id, part: pt.id, pl: Number(pt.pl) || 0, size, cmd, needs, pri: cmd * 10 + needs.length * 5 + size + 20 }));
+      }
+      else out.push(Object.assign(base, { k: t.id + "@" + st, size: sh.size, cmd: Number(t.cmd) || 0, needs: t.needs || [], pri: (t.cmd || 0) * 10 + (t.needs || []).length * 5 + sh.size }));
     }
   }
   return out.sort((a,b) => a.S - b.S || b.pri - a.pri);
 }
+/* what one slot needs and who may fill it: a company part has its own numbers and its own platoon */
+function slotComp(t, sl){
+  const pt = sl && sl.part && taskParts(t) ? taskParts(t).find(x => x.id === sl.part) : null;
+  if (pt) return { cmd: Number(pt.cmd) || 0, needs: pt.needs || [], pls: pt.pl ? [Number(pt.pl)] : (t.platoons || jointPl()), name: pt.name || "", pl: Number(pt.pl) || 0 };
+  return { cmd: Number(t && t.cmd) || 0, needs: (t && t.needs) || [], pls: (t && t.platoons) || jointPl(), name: "", pl: 0 };
+}
+const partLabel = (t, sl) => { const c = slotComp(t, sl); return [c.pl ? plName(c.pl) : "", c.name].filter(Boolean).join(" · "); };
 function ruleMaps(){
   const R = { notTask:{}, only:{}, noNight:new Set(), apart:[], together:{}, maxDay:{}, must:{} };
   for (const r of Object.values(S.rules)){
@@ -145,7 +175,8 @@ function slotLoad(t, sl){ const w = t ? (t.weight ?? 1) : 1; return sl.len * w +
 /* Per task: who may serve (t.who), who is exempt (t.exempt), fixed queue (t.queue), rest after it (t.rest).
    Per person: exemptions (p.exempt: all / nights / one task, optionally until a date).
    General (settings): rest after a night shift, caps per day / week / nights a week. */
-const weekOf = d => addDays(d, -dow(d));
+const WEEK_MEMO = new Map();
+const weekOf = d => { let w = WEEK_MEMO.get(d); if (w === undefined){ w = addDays(d, -dow(d)); WEEK_MEMO.set(d, w); } return w; };
 function restAfter(t, sl){ const s = settings(), base = (t && t.rest != null) ? t.rest : s.minRest; return sl.night ? Math.max(base, s.restAfterNight || 0) : base; }
 function exemptionsOn(p, d){ return (p.exempt || []).filter(x => !x.until || d <= x.until); }
 /* rulebook reasons this person may not take this slot (static: qualifications and exemptions) */
@@ -165,78 +196,140 @@ function ruleReasons(p, t, sl, d){
 }
 const capOf = (R, pid) => { const s = settings(), own = R.maxDay[pid]; return own != null ? own : (s.maxPerDay || 0); };
 
+/* ---- the generator ----
+   1. Every other roster counts: its load (for fairness), its shifts near these dates (rest, both before and after)
+      and its weekly counts (caps). Seats locked by hand on these dates are booked first, so the rest is planned around them.
+   2. Slots are filled in time order. Within the rules, the pick goes to whoever has the fewest shifts today, then the
+      lowest load relative to the days they were in (someone who came late or went out isn't made to catch up).
+   3. A balancing pass then moves and swaps seats while that evens out load, nights and shifts per day. */
+const FAIR = { day: 10, cmdW: 1.15, wNight: 8, wDay: 30, ms: 250, passes: 10 };
+const cmdLike = p => !!p && (isCmd(p) || isCmdP(p));
+function restOK(st, pid, sl, rest, skipKey){
+  for (const o of (st.iv[pid] || [])){
+    if (skipKey && o.key === skipKey) continue;
+    if (o.S < sl.E && sl.S < o.E) return false;
+    if (o.E <= sl.S && sl.S - o.E < o.R) return false;
+    if (sl.E <= o.S && o.S - sl.E < rest) return false;
+  }
+  return true;
+}
 function generate(dates, opt = {}){
-  const s = settings(), c = cfg(), R = ruleMaps(), excl = opt.exclude || new Set();
+  const c = cfg(), R = ruleMaps(), excl = opt.exclude || new Set();
   const all = people().filter(p => !excl.has(p.id));
   const byId = Object.fromEntries(all.map(p => [p.id, p]));
-  const st = { busy:{}, load:{}, perDay:{}, perWeek:{}, nights:{}, last:{} };
-  const set = new Set(dates); dates = [...dates].sort();
-  const weeks = new Set(dates.map(weekOf));
+  dates = [...new Set(dates)].sort(); const set = new Set(dates);
+  const st = { iv:{}, load:{}, nightN:{}, perDay:{}, perWeek:{}, nights:{}, last:{}, f:{}, w:{} };
+  if (!dates.length) return {};
+  const weeks = new Set(dates.map(weekOf)), lo = addDays(dates[0], -2), hi = addDays(dates[dates.length - 1], 2);
+  const histDays = [];
   if (!opt.fresh){
     for (const [dk, r] of Object.entries(S.rosters)){
-      if (set.has(dk)) continue; const di = diffDays(c.lineStart, dk), wk = weekOf(dk);
+      if (set.has(dk) || !r) continue; histDays.push(dk);
+      const di = diffDays(c.lineStart, dk), wk = weekOf(dk);
       for (const sl of (r.slots || [])){
-        const t = S.tasks[sl.t], E = di * 24 + sl.s + sl.len, night = sl.night;
+        const t = S.tasks[sl.t];
         for (const pid of (sl.p || [])) if (pid){
-          st.load[pid] = (st.load[pid] || 0) + slotLoad(t, sl);
-          if (dk < dates[0]) st.busy[pid] = Math.max(st.busy[pid] ?? -1e9, E + restAfter(t, sl));
-          if (weeks.has(wk)){ st.perWeek[wk + pid] = (st.perWeek[wk + pid] || 0) + 1; if (night) st.nights[wk + pid] = (st.nights[wk + pid] || 0) + 1; }
+          st.load[pid] = (st.load[pid] || 0) + slotLoad(t, sl); if (sl.night) st.nightN[pid] = (st.nightN[pid] || 0) + 1;
+          if (dk >= lo && dk <= hi) (st.iv[pid] = st.iv[pid] || []).push({ S: di * 24 + sl.s, E: di * 24 + sl.s + sl.len, R: restAfter(t, sl) });
+          if (weeks.has(wk)){ st.perWeek[wk + pid] = (st.perWeek[wk + pid] || 0) + 1; if (sl.night) st.nights[wk + pid] = (st.nights[wk + pid] || 0) + 1; }
           if (dk < dates[0] && t) st.last[t.id + "|" + pid] = Math.max(st.last[t.id + "|" + pid] ?? -1e9, di * 24 + sl.s);
         }
       }
     }
   }
+  // fairness is relative to the days a person was in: f scales load to the average presence
+  const pres = {}; for (const d of histDays.concat(dates)) for (const p of all) if (present(p, d)) pres[p.id] = (pres[p.id] || 0) + 1;
+  const pv = Object.values(pres), P = pv.length ? pv.reduce((a, b) => a + b, 0) / pv.length : 1;
+  for (const p of all){ st.f[p.id] = P / Math.max(1, pres[p.id] || 0); st.w[p.id] = cmdLike(p) ? FAIR.cmdW : 1; }
+  // seats locked by hand on these dates: booked before anything else
+  const locked = {};
+  for (const d of dates){
+    const prev = opt.fresh ? null : S.rosters[d]; if (!prev) continue;
+    const keys = new Set(buildSlots(d).map(x => x.k));
+    for (const sl of (prev.slots || [])) if (sl.lock && keys.has(sl.k)){
+      locked[d + "|" + sl.k] = sl;
+      const t = S.tasks[sl.t], di = diffDays(c.lineStart, d), abs = Object.assign({}, sl, { S: di * 24 + sl.s, E: di * 24 + sl.s + sl.len });
+      for (const pid of (sl.p || [])) if (pid && byId[pid]) bookSeat(st, pid, t, abs, d, d + "|" + sl.k);
+    }
+  }
+  // fixed-queue slots ahead: the people next in line are kept free for them where possible
+  const built = {}; st.qs = [];
+  for (const d of dates){ built[d] = buildSlots(d); for (const x of built[d]){ const t = S.tasks[x.t]; if (t.queue && t.queue.on) st.qs.push({ t: t.id, S: x.S }); } }
   const result = {};
   for (const d of dates){
-    const prev = opt.fresh ? null : S.rosters[d], locked = {};
-    if (prev) for (const sl of (prev.slots || [])) if (sl.lock) locked[sl.k] = sl;
-    const slots = buildSlots(d).map(sl => fillSlot(sl, d, all, byId, R, st, locked[sl.k]));
+    const slots = built[d].map(sl => fillSlot(sl, d, all, byId, R, st, locked[d + "|" + sl.k]));
     result[d] = { date: d, slots, gen: Date.now() };
   }
+  if (opt.polish !== false) balanceRoster(result, dates, all, byId, R, st);
   return result;
 }
+function bookSeat(st, id, t, sl, d, key){
+  const wk = weekOf(d);
+  (st.iv[id] = st.iv[id] || []).push({ S: sl.S, E: sl.E, R: restAfter(t, sl), key });
+  st.load[id] = (st.load[id] || 0) + slotLoad(t, sl); if (sl.night) st.nightN[id] = (st.nightN[id] || 0) + 1;
+  st.perDay[d + id] = (st.perDay[d + id] || 0) + 1; st.perWeek[wk + id] = (st.perWeek[wk + id] || 0) + 1;
+  if (sl.night) st.nights[wk + id] = (st.nights[wk + id] || 0) + 1;
+}
+function unbookSeat(st, id, t, sl, d, key){
+  const wk = weekOf(d);
+  st.iv[id] = (st.iv[id] || []).filter(o => o.key !== key);
+  st.load[id] = (st.load[id] || 0) - slotLoad(t, sl); if (sl.night) st.nightN[id] = (st.nightN[id] || 0) - 1;
+  st.perDay[d + id] = (st.perDay[d + id] || 0) - 1; st.perWeek[wk + id] = (st.perWeek[wk + id] || 0) - 1;
+  if (sl.night) st.nights[wk + id] = (st.nights[wk + id] || 0) - 1;
+}
 const WHY_TXT = { out:"לא בפנים", unit:"", rest:"במנוחה", rule:"לפי החוקה", cap:"הגיעו לתקרה", pair:"אילוץ זוגות", busy:"" };
+/* why this person can't take this seat (static rules, rest, caps), or null. `skip` is a seat they are leaving */
+function staticBlock(p, t, sl, d, R){
+  if (p.noAuto) return "busy";
+  if (!slotComp(t, sl).pls.includes(p.platoon)) return "unit";
+  if (!present(p, d)) return "out";
+  if (R.notTask[p.id] && R.notTask[p.id].has(t.id)) return "rule";
+  if (R.only[p.id] && !R.only[p.id].has(t.id)) return "rule";
+  if (sl.night && R.noNight.has(p.id)) return "rule";
+  if (ruleReasons(p, t, sl, d).length) return "rule";
+  return null;
+}
+function seatBlock(p, t, sl, d, R, st, chosen, skip){
+  const s = settings(), wk = weekOf(d);
+  if (chosen.includes(p.id)) return "busy";
+  const memo = st.sb || (st.sb = new Map()), mk = p.id + "|" + d + "|" + sl.k;
+  let sb = memo.get(mk); if (sb === undefined){ sb = staticBlock(p, t, sl, d, R); memo.set(mk, sb); }
+  if (sb) return sb;
+  if (!restOK(st, p.id, sl, restAfter(t, sl), skip && skip.key)) return "rest";
+  const sd = skip && skip.d === d ? 1 : 0, sw = skip && weekOf(skip.d) === wk ? 1 : 0, sn = sw && (skip.sl || skip).night ? 1 : 0;
+  const cap = capOf(R, p.id);
+  if (cap && (st.perDay[d + p.id] || 0) - sd >= cap) return "cap";
+  if (s.maxPerWeek && (st.perWeek[wk + p.id] || 0) - sw >= s.maxPerWeek) return "cap";
+  if (sl.night && s.maxNightsWeek && (st.nights[wk + p.id] || 0) - sn >= s.maxNightsWeek) return "cap";
+  for (const g of R.apart) if (g.has(p.id) && chosen.some(c => c !== p.id && g.has(c))) return "pair";
+  return null;
+}
 function fillSlot(sl, d, all, byId, R, st, lockedSlot){
-  const t = S.tasks[sl.t], s = settings(), wk = weekOf(d);
+  const t = S.tasks[sl.t], comp = slotComp(t, sl), key = d + "|" + sl.k;
   const chosen = [], warns = [];
-  const commit = () => {
-    for (const id of chosen){
-      st.busy[id] = sl.E + restAfter(t, sl); st.load[id] = (st.load[id] || 0) + slotLoad(t, sl);
-      st.perDay[d + id] = (st.perDay[d + id] || 0) + 1; st.perWeek[wk + id] = (st.perWeek[wk + id] || 0) + 1;
-      if (sl.night) st.nights[wk + id] = (st.nights[wk + id] || 0) + 1;
-      st.last[t.id + "|" + id] = sl.S;
-    }
-  };
+  const extra = { }; if (sl.part){ extra.part = sl.part; extra.pl = sl.pl; }
   if (lockedSlot){
-    for (const id of (lockedSlot.p || [])) if (id && byId[id]) chosen.push(id);
-    commit(); const p = (lockedSlot.p || []).slice(0, sl.size); while (p.length < sl.size) p.push(null);
-    return { k: sl.k, t: sl.t, s: sl.s, len: sl.len, night: sl.night, p, lock: true, w: [] };
+    // already booked in generate(); the fixed queue still needs to know it was served
+    for (const id of (lockedSlot.p || [])) if (id) st.last[t.id + "|" + id] = sl.S;
+    const p = (lockedSlot.p || []).slice(0, sl.size); while (p.length < sl.size) p.push(null);
+    return Object.assign({ k: sl.k, t: sl.t, s: sl.s, len: sl.len, night: sl.night, p, lock: true, w: [] }, extra);
   }
-  /* why this person can't take the slot now, or null */
-  const why = p => {
-    if (chosen.includes(p.id) || p.noAuto) return "busy";
-    if (!(t.platoons || jointPl()).includes(p.platoon)) return "unit";
-    if (!present(p, d)) return "out";
-    if ((st.busy[p.id] ?? -1e9) > sl.S) return "rest";
-    if (R.notTask[p.id] && R.notTask[p.id].has(t.id)) return "rule";
-    if (R.only[p.id] && !R.only[p.id].has(t.id)) return "rule";
-    if (sl.night && R.noNight.has(p.id)) return "rule";
-    if (ruleReasons(p, t, sl, d).length) return "rule";
-    const cap = capOf(R, p.id);
-    if (cap && (st.perDay[d + p.id] || 0) >= cap) return "cap";
-    if (s.maxPerWeek && (st.perWeek[wk + p.id] || 0) >= s.maxPerWeek) return "cap";
-    if (sl.night && s.maxNightsWeek && (st.nights[wk + p.id] || 0) >= s.maxNightsWeek) return "cap";
-    for (const g of R.apart) if (g.has(p.id) && chosen.some(c => g.has(c))) return "pair";
-    return null;
-  };
+  const why = p => seatBlock(p, t, sl, d, R, st, chosen);
   const elig = p => !why(p);
-  const tagged = new Set((t.needs || []).map(n => n.tag));
+  const tagged = new Set(comp.needs.map(n => n.tag));
+  const reserved = new Set();
+  if (!(t.queue && t.queue.on) && st.qs && st.qs.length){
+    const winE = sl.E + restAfter(t, sl), cnt = {};
+    for (const x of st.qs) if (x.S >= sl.S && x.S < winE) cnt[x.t] = (cnt[x.t] || 0) + 1;
+    for (const [tid, m] of Object.entries(cnt)) queueNow(st, S.tasks[tid], d).slice(0, m).forEach(id => reserved.add(id));
+  }
   /* fixed queue: whoever did this task longest ago goes next; never yet → by the queue's order */
   const q = t.queue && t.queue.on ? t.queue.order || [] : null;
   const qIdx = p => { const i = q.indexOf(p.id); return i < 0 ? q.length + 1 : i; };
   const score = q ? (p => { const last = st.last[t.id + "|" + p.id]; return (last == null ? -1e9 : last) + qIdx(p) * 1e-3; })
-    : ((p, seat) => (st.load[p.id] || 0)
-      + (seat !== "cmd" && isCmd(p) ? 6 : 0) + (seat !== "cmd" && isCmdP(p) ? 2 : 0)
+    : ((p, seat) => (st.load[p.id] || 0) * (st.f[p.id] || 1) * (st.w[p.id] || 1)
+      + FAIR.day * (st.perDay[d + p.id] || 0) + (reserved.has(p.id) ? 60 : 0)
+      + (seat !== "cmd" && isCmd(p) ? 4 : 0) + (seat !== "cmd" && isCmdP(p) ? 1.5 : 0)
       + (seat !== "tag" && (p.tags || []).some(x => !tagged.has(x)) ? 1.5 : 0)
       + hash(p.id + sl.k + d) * 0.8);
   const pick = (fn, seat) => {
@@ -252,12 +345,13 @@ function fillSlot(sl, d, all, byId, R, st, lockedSlot){
     }
     if (!best) return false; best.forEach(u => chosen.push(u.id)); return true;
   };
+  if (comp.pl && !platoonIn(comp.pl, d)) warns.push(`${plName(comp.pl)} לא בפנים`);
   for (const pool of (R.must[t.id] || [])){
     if (!chosen.some(c => pool.includes(c)) && !pick(p => pool.includes(p.id), "must")) warns.push("חסר: " + pool.map(id => (byId[id] || S.soldiers[id] || {}).name || "?").join(" / "));
   }
-  let needCmd = (t.cmd || 0) - chosen.filter(id => isCmd(byId[id])).length;
+  let needCmd = comp.cmd - chosen.filter(id => isCmd(byId[id])).length;
   while (needCmd > 0){ if (pick(isCmd, "cmd") || pick(isCmdP, "cmd")) needCmd--; else { warns.push("חסר מפקד"); break; } }
-  for (const n of (t.needs || [])){
+  for (const n of comp.needs){
     let miss = (n.count || 1) - chosen.filter(id => hasTag(byId[id], n.tag)).length;
     while (miss > 0){ if (pick(p => hasTag(p, n.tag), "tag")) miss--; else { warns.push("חסר " + n.tag); break; } }
   }
@@ -266,18 +360,102 @@ function fillSlot(sl, d, all, byId, R, st, lockedSlot){
     // say why: how many of the people who could have come were held back, and by what
     const tally = {}; for (const p of all){ const w = why(p); if (w && WHY_TXT[w]) tally[w] = (tally[w] || 0) + 1; }
     const parts = Object.entries(tally).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${n} ${WHY_TXT[k]}`);
+    if (!parts.length && comp.pl && !all.some(p => p.platoon === comp.pl)) parts.push(`אין חיילים ב${plName(comp.pl)}`);
     warns.push(`חסרים ${sl.size - chosen.length}` + (parts.length ? ` · ${parts.join(", ")}` : ""));
   }
-  commit();
+  for (const id of chosen){ bookSeat(st, id, t, sl, d, key); st.last[t.id + "|" + id] = sl.S; }
   const p = chosen.slice(); while (p.length < sl.size) p.push(null);
-  return { k: sl.k, t: sl.t, s: sl.s, len: sl.len, night: sl.night, p, lock: false, w: warns };
+  return Object.assign({ k: sl.k, t: sl.t, s: sl.s, len: sl.len, night: sl.night, p, lock: false, w: warns }, extra);
+}
+/* who the fixed queue of task t would call next (longest since served first, then the queue's order) */
+function queueNow(st, t, d){
+  const order = (t.queue && t.queue.order) || [];
+  return order.filter(id => S.soldiers[id] && present(S.soldiers[id], d))
+    .map((id, i) => [id, (st.last[t.id + "|" + id] ?? -1e9) + i * 1e-3]).sort((a, b) => a[1] - b[1]).map(x => x[0]);
+}
+/* ---- balancing pass: move a seat from a heavier person to a lighter one, or swap two seats,
+   whenever that lowers  Σ ω·load² + wNight·Σ f·nights² + wDay·Σ (shifts per day)²  (ω, f: presence and role factors).
+   Never touches locked seats, fixed-queue tasks, "together" pairs or a seat that covers a "must" rule,
+   and keeps every slot's commanders and פק״לים. */
+function balanceRoster(res, dates, all, byId, R, st){
+  const c = cfg(), t0 = Date.now(), seats = [], mine = {};
+  const mustIds = new Set(); Object.values(R.must).forEach(ps => ps.forEach(pool => pool.forEach(id => mustIds.add(id))));
+  for (const d of dates){
+    const di = diffDays(c.lineStart, d);
+    res[d].slots.forEach((sl, si) => {
+      const t = S.tasks[sl.t]; if (!t || sl.lock || (t.queue && t.queue.on)) return;
+      const abs = Object.assign({}, sl, { S: di * 24 + sl.s, E: di * 24 + sl.s + sl.len });
+      sl.p.forEach((pid, pi) => { const seat = { d, di, si, pi, t, sl: abs, key: d + "|" + sl.k, x: slotLoad(t, sl) }; seats.push(seat); if (pid) (mine[pid] = mine[pid] || []).push(seat); });
+    });
+  }
+  const occ = seat => res[seat.d].slots[seat.si].p[seat.pi];
+  const A = id => (st.load[id] || 0) * (st.f[id] || 1) * (st.w[id] || 1);
+  const C = (id, d) => st.perDay[d + id] || 0;
+  const sq = x => x * x;
+  /* cost change if person `id` loses seat `out` and/or gains seat `inn` */
+  /* each person's term is ω·L² with ω = presence factor × role weight: the optimum is where ω·L is equal,
+     so someone who was in for half the days ends up with about half the load */
+  const delta = (id, out, inn) => {
+    const fN = st.f[id] || 1, om = fN * (st.w[id] || 1), L = st.load[id] || 0, Nn = st.nightN[id] || 0;
+    const dL = (inn ? inn.x : 0) - (out ? out.x : 0), dN = (inn && inn.sl.night ? 1 : 0) - (out && out.sl.night ? 1 : 0);
+    let v = om * (sq(L + dL) - sq(L)) + FAIR.wNight * fN * (sq(Nn + dN) - sq(Nn));
+    if (out && inn && out.d === inn.d) return v;
+    if (out) v += FAIR.wDay * (sq(C(id, out.d) - 1) - sq(C(id, out.d)));
+    if (inn) v += FAIR.wDay * (sq(C(id, inn.d) + 1) - sq(C(id, inn.d)));
+    return v;
+  };
+  /* can b sit in `seat` (leaving `leave`, if swapping) without breaking the slot's commanders / פק״לים */
+  const fits = (b, seat, leave) => {
+    const sl = res[seat.d].slots[seat.si], a = byId[occ(seat)], others = sl.p.filter((x, i) => x && i !== seat.pi);
+    if (others.includes(b.id) || (R.together[b.id] && R.together[b.id].size)) return false;
+    if (seatBlock(b, seat.t, seat.sl, seat.d, R, st, others, leave) ) return false;
+    const comp = slotComp(seat.t, seat.sl), cnt = fn => others.filter(id => fn(byId[id] || S.soldiers[id])).length;
+    if (comp.cmd){ const before = cnt(cmdLike) + (cmdLike(a) ? 1 : 0), after = cnt(cmdLike) + (cmdLike(b) ? 1 : 0); if (after < Math.min(comp.cmd, before)) return false; }
+    for (const n of comp.needs){ const h = p => hasTag(p, n.tag), before = cnt(h) + (a && h(a) ? 1 : 0), after = cnt(h) + (h(b) ? 1 : 0); if (after < Math.min(n.count || 1, before)) return false; }
+    return true;
+  };
+  const movable = id => !!byId[id] && !mustIds.has(id) && !(R.together[id] && R.together[id].size);
+  const apply = (seat, from, to) => {
+    res[seat.d].slots[seat.si].p[seat.pi] = to;
+    if (from){ unbookSeat(st, from, seat.t, seat.sl, seat.d, seat.key); mine[from] = (mine[from] || []).filter(x => x !== seat); }
+    if (to){ bookSeat(st, to, seat.t, seat.sl, seat.d, seat.key); (mine[to] = mine[to] || []).push(seat); }
+  };
+  for (let pass = 0; pass < FAIR.passes && Date.now() - t0 < FAIR.ms; pass++){
+    let moved = 0;
+    const heavy = Object.keys(mine).filter(movable).sort((a, b) => A(b) - A(a));
+    for (const a of heavy){
+      for (const X of (mine[a] || []).slice()){
+        if (occ(X) !== a) continue;
+        let best = null, bestV = -1e-6;
+        for (const b of all){
+          if (b.id === a || !movable(b.id) || !present(b, X.d)) continue;
+          // 1. move: b takes a's seat
+          const mv = delta(a, X, null) + delta(b.id, null, X);
+          if (mv < bestV && fits(b, X, null)){ bestV = mv; best = [X, null, b.id]; }
+          // 2. swap with one of b's seats on the same or a neighbouring day
+          for (const Y of (mine[b.id] || [])){
+            if (Y.key === X.key || Math.abs(X.di - Y.di) > 1 || occ(Y) !== b.id) continue;
+            const v = delta(a, X, Y) + delta(b.id, Y, X); if (v >= bestV) continue;
+            if (fits(b, X, Y) && fits(byId[a], Y, X)){ bestV = v; best = [X, Y, b.id]; }
+          }
+        }
+        if (!best) continue;
+        const [x, y, b] = best;
+        if (y){ apply(x, a, null); apply(y, b, null); apply(x, null, b); apply(y, null, a); }
+        else apply(x, a, b);
+        moved++;
+      }
+      if (Date.now() - t0 > FAIR.ms) break;
+    }
+    if (!moved) break;
+  }
 }
 function unfilled(res){ let n = 0; for (const r of Object.values(res)) for (const sl of r.slots) n += sl.p.filter(x => !x).length; return n; }
 /* run the actual roster for those days with and without the absence — the real "can I release" test */
 function simulateAbs(p, abs){
   const days = range(abs.from, abs.to).filter(d => dayState(d, p.platoon) === "duty" && inWindow(p, d));
   if (!days.length || !tasksList().length) return null;
-  const run = () => unfilled(generate(days, { fresh:true }));
+  const run = () => unfilled(generate(days, { fresh:true, polish:false }));
   let withAbs, without;
   try {
     if (abs.id) OVR.ignoreAbs = abs.id; else OVR.extraAbs = null;

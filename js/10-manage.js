@@ -85,14 +85,14 @@ function vManage(ctx, noSeg){
       h += `<div class="eyebrow" style="margin:12px 0 6px">${esc(plName(pl))} · ${groups[pl].length}</div><div class="list">${groups[pl].map(p => {
         const abs = (p.absences || []).map(a => a.from ? `${KIND[a.kind] || ""} ${a.from === a.to ? dm(a.from) : dm(a.from) + "–" + dm(a.to)}` : `${KIND[a.kind] || ""} (לא נקבע)`);
         const win = p.from || p.to ? `${p.from ? "מ-" + dm(p.from) : ""} ${p.to ? "עד " + dm(p.to) : ""}` : "קו מלא";
-        return `<button class="li" data-a="editPerson" data-v="${p.id}"><div class="main"><div class="n">${esc(p.name)}</div><div class="s">${esc(win)}${abs.length ? " · " + esc(abs.join(" · ")) : ""}${p.note ? " · " + esc(p.note) : ""}</div></div><div class="tags">${p.role !== "soldier" ? `<span class="pill${isCmd(p) ? " cmd" : ""}">${roleNames()[p.role]}</span>` : ""}${(p.tags||[]).map(t => `<span class="pill">${esc(t)}</span>`).join("")}${p.tentative ? `<span class="pill warn">לא ודאי</span>` : ""}</div></button>`; }).join("")}</div>`;
+        return `<button class="li" data-a="quick" data-v="${p.id}"><div class="main"><div class="n">${esc(p.name)}</div><div class="s">${esc(win)}${abs.length ? " · " + esc(abs.join(" · ")) : ""}${p.note ? " · " + esc(p.note) : ""}</div></div><div class="tags">${p.role !== "soldier" ? `<span class="pill${isCmd(p) ? " cmd" : ""}">${roleNames()[p.role]}</span>` : ""}${(p.tags||[]).map(t => `<span class="pill">${esc(t)}</span>`).join("")}${p.tentative ? `<span class="pill warn">לא ודאי</span>` : ""}</div></button>`; }).join("")}</div>`;
     }
     h += `</section>`;
   }
   if (UI.seg === "tasks"){
     const ts = tasksList();
     h += `<section><div class="sec-h"><h2>משימות ושמירות</h2><span class="aside">מהן נגזרת דרישת כוח האדם</span>${add("editTask","הוספת משימה")}</div>`;
-    h += ts.length ? `<div class="list">${ts.map(t => `<button class="li" data-a="editTask" data-v="${t.id}"><span class="tbar" style="background:${esc(t.color || "var(--accent)")};height:34px"></span><div class="main"><div class="n">${esc(t.name)}</div><div class="s">${taskShape(t).size} חיילים${t.cmd ? " (כולל מפקד)" : ""} · ${taskShape(t).hours === 24 ? "כל היממה" : taskShape(t).hours + " ש׳ מ-" + hh(taskShape(t).start)} · משמרות של ${taskShape(t).len} ש׳ · צריך ${taskNeed(t)} ביום${(t.needs||[]).length ? " · " + (t.needs.map(n => n.tag + "×" + n.count).join(", ")) : ""}</div></div><div class="tags"><span class="pill">${t.kind === "guard" ? "שמירה" : "משימה"}</span>${t.example ? `<span class="pill warn">דוגמה</span>` : ""}</div></button>`).join("")}</div>` : `<div class="empty-state"><b>אין משימות</b>לדוגמה: ש״ג, סיור, כיתת כוננות, תצפית.</div>`;
+    h += ts.length ? `<div class="list">${ts.map(t => `<button class="li" data-a="editTask" data-v="${t.id}"><span class="tbar" style="background:${esc(t.color || "var(--accent)")};height:34px"></span><div class="main"><div class="n">${esc(t.name)}</div><div class="s">${esc(taskSummary(t))}</div></div><div class="tags"><span class="pill">${isGhost(t) ? "רפאים" : taskParts(t) ? "פלוגתית" : t.kind === "guard" ? "שמירה" : "משימה"}</span>${t.example ? `<span class="pill warn">דוגמה</span>` : ""}</div></button>`).join("")}</div>` : `<div class="empty-state"><b>אין משימות</b>לדוגמה: ש״ג, סיור, כיתת כוננות, תצפית.</div>`;
     if (ts.some(t => t.example)) h += `<p class="small muted">משימות שמסומנות "דוגמה" הוכנסו כדי שהמערכת תעבוד מהרגע הראשון. ערכו אותן למשימות האמיתיות או מחקו.</p>`;
     h += `</section>`;
   }
@@ -175,4 +175,13 @@ function vLineSettings(){
   ${APP_MODE === "local" ? `<p class="small muted" style="margin:0 0 8px">הנתונים שמורים רק במכשיר הזה. ${lastBackupText()}</p>` : ""}
   <div class="row">${true ? `<button class="btn primary" data-a="backupFile">שמירת גיבוי לקובץ</button>` : ""}<button class="btn" data-a="exportJson">העתקת גיבוי כטקסט</button>${canEdit() ? `<label class="btn" for="impFile" tabindex="0">שחזור מקובץ</label><input type="file" id="impFile" accept=".json,application/json,text/plain" hidden data-ch="impFile"><button class="btn" data-a="importAsk">שחזור מטקסט</button>` : ""}</div>
   ${APP_MODE === "local" && canEdit() ? `<div class="row" style="margin-top:14px"><button class="btn danger" data-a="resetAll">מחיקת כל הנתונים והתחלה מחדש</button></div>` : ""}</section>`;
+}
+
+/* one line about a task for lists */
+function taskSummary(t){
+  if (isGhost(t)) return ghostLine(t);
+  const sh = taskShape(t), c = taskComp(t), when = (t.dates && t.dates.length) ? "ב-" + t.dates.map(dm).join(", ") : "";
+  const time = sh.hours === 24 ? "כל היממה" : `${hh(sh.start)}–${hh((sh.start + sh.hours) % 24)}`;
+  if (taskParts(t)) return [`${c.size} חיילים ב-${t.parts.length} חלקים`, time, when].filter(Boolean).join(" · ");
+  return [`${c.size} במשמרת${c.cmd ? ` (${c.cmd === 1 ? "כולל מפקד" : c.cmd + " מפקדים"})` : ""}`, time, `משמרות של ${sh.len} ש׳`, `צריך ${taskNeed(t)} ביום`, c.needs.length ? c.needs.map(n => n.tag + "×" + n.count).join(", ") : "", when].filter(Boolean).join(" · ");
 }

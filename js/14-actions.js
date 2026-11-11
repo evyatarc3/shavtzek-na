@@ -93,7 +93,18 @@ const ACT = {
   delPerson: (v, el) => { if (!armDelete(el)) return; const id = DRAFT.id; put("soldiers/" + id, null); for (const r of Object.values(S.rules)) if ((r.a || []).includes(id)){ const n = JSON.parse(JSON.stringify(r)); n.a = n.a.filter(x => x !== id); put("rules/" + r.id, n); } closeSheet(); toast("נמחק"); },
   // task
   editTask: v => openTask(v),
-  saveTask: () => { readTask(); if (!DRAFT.name) return toast("חסר שם משימה"); if (!DRAFT.platoons.length) return toast("בחרו מי מאייש"); const id = DRAFT.id || uid("t_"); DRAFT.id = id; if (DRAFT.order == null) DRAFT.order = Object.keys(S.tasks).length; put("tasks/" + id, DRAFT); closeSheet(); toast("המשימה נשמרה"); },
+  saveTask: () => { const err = finishTask(); if (err) return toast(err); const t = DRAFT, id = t.id || uid("t_"); t.id = id; if (t.order == null) t.order = Object.keys(S.tasks).length; put("tasks/" + id, t); closeSheet(); afterTaskSave(t); },
+  tTpl: v => applyTaskTpl(Number(v)),
+  tMode: v => { syncTask(); DRAFT.mode = v; if (v === "company" && !(DRAFT.parts || []).length){ DRAFT.parts = allPlatoons().map(pl => newPart(pl)); DRAFT.len = DRAFT.hours = Math.min(DRAFT.hours || 4, 8); } reTask(); },
+  tWhen: v => { syncTask(); DRAFT.when = v; if (v === "dates" && !DRAFT.dates.filter(Boolean).length) DRAFT.dates = [defaultDay()]; reTask(); },
+  tDateAdd: () => { syncTask(); const last = DRAFT.dates.filter(Boolean).slice(-1)[0]; DRAFT.dates.push(last ? addDays(last, 1) : defaultDay()); reTask(); },
+  tDateDel: (v, el) => { syncTask(); DRAFT.dates.splice(Number(el.dataset.i), 1); reTask(); },
+  tPak: v => { syncTask(); cycleNeed(DRAFT.needs = DRAFT.needs || [], v); reTask(); },
+  tPartPak: (v, el) => { syncTask(); const pt = DRAFT.parts[Number(el.dataset.i)]; cycleNeed(pt.needs = pt.needs || [], v); reTask(); },
+  tPartAdd: () => { syncTask(); DRAFT.parts.push(newPart(0)); reTask(); },
+  tPartDel: (v, el) => { syncTask(); DRAFT.parts.splice(Number(el.dataset.i), 1); reTask(); },
+  stp: (v, el) => { const i = document.getElementById(v); if (!i || i.disabled) return; const n = Math.min(Number(i.max) || 99, Math.max(Number(i.min) || 0, (Number(i.value) || 0) + Number(el.dataset.d))); i.value = n; if (i.dataset.ch === "tPrev") updTaskPrev(); },
+  genGo: v => { closeSheet(); const ds = String(v).split(",").filter(Boolean); genDates(ds); UI.tab = "roster"; UI.rosterDate = ds[0]; saveUI(); render(); window.scrollTo(0, 0); },
   delTask: (v, el) => { if (!armDelete(el)) return; put("tasks/" + DRAFT.id, null); closeSheet(); toast("המשימה נמחקה"); },
   // rule
   editRule: v => openRule(v),
@@ -143,6 +154,7 @@ document.addEventListener("change", e => {
   if (el.dataset && el.dataset.ch === "ruleType"){ readRule(); DRAFT.type = el.value; ruleSheet(); }
   if (el.dataset && el.dataset.ch === "calWho"){ UI.calWho = el.value; saveUI(); render(); }
   if (el.dataset && el.dataset.ch === "tPrev") updTaskPrev();
+  if (el.dataset && el.dataset.ch === "qDay") openQuick(el.dataset.pid, el.value);
   if (el.dataset && el.dataset.ch === "cPrev") updConstraintPrev();
   if (el.dataset && el.dataset.ch === "impFile") onImportFile(el);
   if (el.dataset && el.dataset.ch === "wzRe"){ readWizard(); render(); }

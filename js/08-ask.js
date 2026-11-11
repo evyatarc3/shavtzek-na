@@ -391,7 +391,7 @@ function ansGap(P){
   return a;
 }
 function ansNeed(P){
-  const a = ansNew(), all = tasksList(), t = todayStr();
+  const a = ansNew(), all = tasksList().filter(tk => !isGhost(tk)), t = todayStr();
   if (P.hypo){
     const h = P.hypo, len = h.len || Math.min(h.hours, 8);
     const s = taskShape({ size:h.size, hours:h.hours, len, rest: settings().minRest }), need = s.size * s.teams;
@@ -588,7 +588,7 @@ function aiData(){
     (p.absences || []).filter(x => x.from && x.to).map(x => `${KIND[x.kind] || "out"} ${x.from}..${x.to}${x.status === "request" ? " (request)" : ""}${x.reason ? " " + x.reason : ""}`).join("; ") || "-"].join(" | ") + (p.tentative ? " | tentative" : ""));
   L.push("");
   L.push(`TASKS (needed per day = per shift × rotating crews, so each crew rests ${settings().minRest}h): name | per shift | hours a day | shift length | crews | needed a day | commanders per shift | days | manned by`);
-  for (const tk of tasksList()){ const s = taskShape(tk); L.push([tk.name, s.size, s.hours, s.len, s.teams, taskNeed(tk), tk.cmd || 0, (tk.days || []).length && tk.days.length < 7 ? tk.days.map(i => WD[i]).join("") : "daily", (tk.platoons || jp).join("+")].join(" | ")); }
+  for (const tk of tasksList().filter(tk => !isGhost(tk))){ const s = taskShape(tk); L.push([tk.name, s.size, s.hours, s.len, s.teams, taskNeed(tk), tk.cmd || 0, (tk.days || []).length && tk.days.length < 7 ? tk.days.map(i => WD[i]).join("") : "daily", (tk.platoons || jp).join("+")].join(" | ")); }
   const rules = Object.values(S.rules).filter(r => r.on !== false);
   if (rules.length){ L.push(""); L.push("ROSTER RULES: " + rules.map(ruleText).join("; ")); }
   const kmin = pakalim().filter(k => (k.min || 0) > 0);

@@ -49,7 +49,7 @@ function vRulebook(){
     ${ed ? `<div class="row"><button class="btn primary sm" data-a="rbSaveGeneral">שמירת הכללים</button></div>` : ""}
   </section>`;
   h += `<section><div class="sec-h"><h2>לכל משימה</h2><span class="aside">מי רשאי, מה חובה, פטורים ותור</span></div>
-    ${tasksList().length ? `<div class="list">${tasksList().map(t => `<button class="li" data-a="taskRule" data-v="${t.id}"><span class="tbar" style="background:${esc(t.color || "var(--accent)")};height:34px"></span><div class="main"><div class="n">${esc(t.name)}</div><div class="s">${esc(taskRuleBits(t).join(" · "))}</div></div><span class="muted" aria-hidden="true">‹</span></button>`).join("")}</div>`
+    ${tasksList().filter(t => !isGhost(t)).length ? `<div class="list">${tasksList().filter(t => !isGhost(t)).map(t => `<button class="li" data-a="taskRule" data-v="${t.id}"><span class="tbar" style="background:${esc(t.color || "var(--accent)")};height:34px"></span><div class="main"><div class="n">${esc(t.name)}</div><div class="s">${esc(taskRuleBits(t).join(" · "))}</div></div><span class="muted" aria-hidden="true">‹</span></button>`).join("")}</div>`
       : `<div class="empty-state">עוד אין משימות. מוסיפים אותן בעוד ← משימות.</div>`}
   </section>`;
   h += `<section><div class="sec-h"><h2>פטורים אישיים</h2><span class="aside">${ex.length}</span>${ed ? `<div class="end"><button class="btn ghost sm" data-a="exemptNew">+ פטור</button></div>` : ""}</div>
@@ -64,6 +64,7 @@ function rulebookText(){
   const s = settings(), L = [`חוקת משימות · ${plName(myPl())}`];
   L.push(`כללי: מנוחה ${s.minRest} ש׳${s.restAfterNight ? `, אחרי לילה ${s.restAfterNight} ש׳` : ""}${s.maxPerDay ? `, עד ${s.maxPerDay} משמרות ביום` : ""}${s.maxPerWeek ? `, עד ${s.maxPerWeek} בשבוע` : ""}${s.maxNightsWeek ? `, עד ${s.maxNightsWeek} לילות בשבוע` : ""}. לילה ${hh(s.nightFrom)}–${hh(s.nightTo)}.`);
   for (const t of tasksList()){
+    if (isGhost(t)){ L.push(`• ${t.name}: ${ghostLine(t)}`); continue; }
     let line = `• ${t.name}: ${taskRuleBits(t).join(" · ")}`;
     if ((t.exempt || []).length) line += ` (פטורים: ${t.exempt.map(nm).join(", ")})`;
     if (t.queue && t.queue.on) line += ` · הבאים בתור: ${queueNext(t, 4).map(nm).join(", ")}`;

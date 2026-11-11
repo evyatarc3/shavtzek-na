@@ -80,7 +80,7 @@ function vMatrix(ctx){
   for (const pl of Object.keys(groups).map(Number).sort()){
     h += `<tr class="grp"><td colspan="${days.length + 1}"><span class="gl">${esc(plName(pl))} · ${groups[pl].length}</span></td></tr>`;
     for (const p of groups[pl]){
-      h += `<tr><th class="nm" scope="row" title="${esc(p.name)}"><button class="cell" style="text-align:start;height:auto;font-weight:600;font-size:13px" data-a="editPerson" data-v="${p.id}">${esc(p.name)}${isCmd(p) ? ` <span class="pill cmd" style="padding:0 5px">מ׳</span>` : isCmdP(p) ? ` <span class="pill" style="padding:0 5px">פוט׳</span>` : ""}</button></th>`;
+      h += `<tr><th class="nm" scope="row" title="${esc(p.name)}"><button class="cell" style="text-align:start;height:auto;font-weight:600;font-size:13px" data-a="quick" data-v="${p.id}">${esc(p.name)}${isCmd(p) ? ` <span class="pill cmd" style="padding:0 5px">מ׳</span>` : isCmdP(p) ? ` <span class="pill" style="padding:0 5px">פוט׳</span>` : ""}</button></th>`;
       for (const x of days){
         const s = personStatus(p, x.d), a = (s === "abs" || s === "req") ? absOn(p, x.d) : null;
         const cls = s === "in" ? "in" : s === "home" ? "home" : s === "abs" ? "abs" : s === "req" ? "req" : s === "tent" ? "tent in" : "out";

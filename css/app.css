@@ -365,3 +365,25 @@ td.g-none .ic{color:var(--muted);font-weight:400}
 .guide .gbody ul,.guide .gbody ol{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:5px}
 .guide .gkey{background:var(--accent-soft);border-radius:10px;padding:10px 12px}
 .guide .glink{font-size:12.5px;direction:ltr;unicode-bidi:isolate;word-break:break-all}
+
+/* steppers and task parts */
+.stepper{display:flex;align-items:stretch;gap:4px}
+.fld>span.stepper{font-size:inherit;color:inherit;font-weight:inherit}
+.stepper .btn{min-width:40px;padding:0;justify-content:center;font-size:18px;line-height:1}
+.stepper input{flex:1;min-width:0;text-align:center}
+.part-ed{padding:10px;display:flex;flex-direction:column;gap:8px}
+.inrow{display:flex;gap:6px;align-items:stretch}
+.inrow select{max-width:45%}
+.tbtn{border:0;background:none;padding:0;cursor:pointer;color:inherit;font:inherit;text-align:start}
+.free-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 10px}
+.shift .plabel{flex-basis:100%;font-size:12.5px;font-weight:600;color:var(--muted)}
+.task-card.ghost{border-style:dashed}
+.warn-t{color:var(--warn)}
+.sheet .inrow input,.sheet .inrow select{border:1px solid var(--line);background:var(--surface2);border-radius:8px;padding:8px 10px;min-height:40px}
+.qslot{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface2);cursor:pointer;width:100%;text-align:start}
+.qslot .main{flex:1;min-width:0}
+.qslot small{color:var(--muted)}
+.qslot.here{border-color:var(--accent);background:var(--accent-soft)}
+.qslot.bad{opacity:.7}
+.fld input[type=checkbox],.fld input[type=radio]{width:auto;min-height:0;padding:0}
+.task-card.ghost .ppl{padding-top:6px}
