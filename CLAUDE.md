@@ -58,10 +58,16 @@ Rulebook fields:
   `cmd`, `needs: [{tag,count}]`, `rest`, plus shape fields (`size`, `len`, `hours`, `start`, `days`, `platoons`).
 - person: `exempt: [{scope:"all"|"night"|"task", task?, until?, reason?}]`.
 - task kinds: company `parts: [{id, name, pl, size, cmd, needs}]` (a slot per part, filled only from `pl`; `size`/`cmd`
-  on the task mirror the totals for older versions), ghost `ghost: {of:[taskId], note}` (no slots, demand or load;
-  shown under its hosts and as one line in the WhatsApp text, `ghostLine()`), one-time `dates: [YYYY-MM-DD]` (replaces `days`;
-  saved with `days: []` so older versions never schedule it). Helpers: `taskComp()`, `taskParts()`, `slotComp()`, `isGhost()`.
-- roster slot: `{k, t, s, len, night, p:[pid|null], lock, w, part?, pl?}`.
+  on the task mirror the totals for older versions); one-time `dates: [YYYY-MM-DD]` (replaces `days`; saved with `days: []` so older versions never schedule it).
+  Ghost ("רפאים", e.g. כרמל) `ghost: {ok:[taskId], note}`: own seats like a regular task, but its people stay free: they may
+  hold the tasks in `ok` at the same time (`parOK()`); no rest, load, caps or demand. Filled after the regular slots and the
+  balancing pass. Older `ghost: {of}` records (a mirror of the host) are converted by `migrateTasks()` on load and merge.
+  Helpers: `taskComp()`, `taskParts()`, `slotComp()`, `isGhost()`, `ghostOk()`.
+- roster slot: `{k, t, s, len, night, p:[pid|null], lk:[bool], lock, x?:[pid], w, part?, pl?}`. `lk` locks a seat set by hand
+  (`seatLocked()`; `lock` without any `lk` = older whole-slot lock). `x` = people taken out by hand, never put back there.
+  Empty seats are always refilled on generate. `setSeat()` (09-roster) is the one writer for manual changes.
+  `rosterIssues(d)`: red = two tasks at once (not allowed by a ghost task), yellow = short rest; shown on chips and before
+  copying to WhatsApp.
 
 Engine entry points: `ruleReasons()` (static eligibility), `restAfter()`, caps and queue order inside
 `fillSlot()`; `slotConflicts()` mirrors them for manual assignment.

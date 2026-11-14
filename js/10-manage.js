@@ -179,9 +179,9 @@ function vLineSettings(){
 
 /* one line about a task for lists */
 function taskSummary(t){
-  if (isGhost(t)) return ghostLine(t);
   const sh = taskShape(t), c = taskComp(t), when = (t.dates && t.dates.length) ? "ב-" + t.dates.map(dm).join(", ") : "";
   const time = sh.hours === 24 ? "כל היממה" : `${hh(sh.start)}–${hh((sh.start + sh.hours) % 24)}`;
+  if (isGhost(t)) return [`${c.size} במשמרת, במקביל`, parNames(t).length ? "מותר עם " + parNames(t).join(", ") : "בלי משימות במקביל", time, sh.count > 1 ? `משמרות של ${sh.len} ש׳` : "", when].filter(Boolean).join(" · ");
   if (taskParts(t)) return [`${c.size} חיילים ב-${t.parts.length} חלקים`, time, when].filter(Boolean).join(" · ");
   return [`${c.size} במשמרת${c.cmd ? ` (${c.cmd === 1 ? "כולל מפקד" : c.cmd + " מפקדים"})` : ""}`, time, `משמרות של ${sh.len} ש׳`, `צריך ${taskNeed(t)} ביום`, c.needs.length ? c.needs.map(n => n.tag + "×" + n.count).join(", ") : "", when].filter(Boolean).join(" · ");
 }

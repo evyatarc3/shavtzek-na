@@ -40,15 +40,15 @@ function quickSlots(p, d){
       const ppl = (sl.p || []).map(x => x ? nm(x) : "ריק").join(", ");
       return `<button class="qslot${here ? " here" : w.length ? " bad" : ""}" data-a="${here ? "qOut" : "qPut"}" data-v="${d}" data-si="${si}" data-pid="${p.id}"${canEdit() ? "" : " disabled"}>
         <span class="tbar" style="background:${esc(t.color || "var(--accent)")};height:30px"></span><div class="main"><b>${esc(t.name || "")}</b> <span class="ltr num small">${tmRange(sl)}</span>${sl.part ? ` <span class="small muted">${esc(partLabel(t, sl))}</span>` : ""}
-        <br><small>${here ? "משובץ כאן · לחיצה מוציאה" : esc(ppl)}${w.length ? ` · <span class="warn-t">${esc(w.join(" · "))}</span>` : ""}</small></div>${sl.lock ? `<span class="pill">נעול</span>` : ""}</button>`; }).join("")}</div>`;
+        <br><small>${here ? "משובץ כאן · לחיצה מוציאה" : esc(ppl)}${w.length ? ` · <span class="warn-t">${esc(w.join(" · "))}</span>` : ""}</small></div>${here && seatLocked(sl, sl.p.indexOf(p.id)) ? `<span class="pill">🔒</span>` : ""}${isGhost(t) ? `<span class="pill">רפאים</span>` : ""}</button>`; }).join("")}</div>`;
 }
 /* put pid in seat (d, si, pi): locked, and optionally the rest of the day planned again around it */
 function forcePlace(pid, d, si, pi, re){
   const r = JSON.parse(JSON.stringify(S.rosters[d])), sl = r.slots[si], t = S.tasks[sl.t] || {};
-  sl.p[pi] = pid; sl.lock = true; sl.w = [];
+  setSeat(sl, pi, pid);
   if (re){
     // other unlocked seats of this person that day are freed, then everything unlocked is generated again
-    r.slots.forEach((o, i) => { if (i !== si && !o.lock) o.p = o.p.map(x => x === pid ? null : x); });
+    r.slots.forEach((o, i) => { if (i !== si) o.p = o.p.map((x, j) => x === pid && !seatLocked(o, j) ? null : x); });
     put("rosters/" + d, r);
     const res = generate([d]); put("rosters/" + d, res[d]);
   } else put("rosters/" + d, r);
@@ -72,7 +72,7 @@ Object.assign(ACT, {
   qSwap: (v, el) => forcePlace(el.dataset.pid, v, Number(el.dataset.si), Number(el.dataset.pi), el.dataset.re === "1"),
   qOut: (v, el) => {
     const d = v, si = Number(el.dataset.si), pid = el.dataset.pid, r = JSON.parse(JSON.stringify(S.rosters[d])), sl = r.slots[si];
-    sl.p = sl.p.map(x => x === pid ? null : x); sl.lock = true; sl.w = [];
-    put("rosters/" + d, r); toast(`${nm(pid)} הוצא מ${(S.tasks[sl.t] || {}).name || "המשמרת"}. המשבצת נשארת ריקה ונעולה`); openQuick(pid, d);
+    setSeat(sl, sl.p.indexOf(pid), null);
+    put("rosters/" + d, r); toast(`${nm(pid)} הוצא מ${(S.tasks[sl.t] || {}).name || "המשמרת"}. בג׳נרט מחדש העמדה תתמלא במישהו אחר`); openQuick(pid, d);
   },
 });

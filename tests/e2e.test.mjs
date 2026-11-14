@@ -116,9 +116,13 @@ await ev(A.p, () => { genDates(['2026-11-03']); UI.tab = 'roster'; UI.rosterDate
 // ghost task from the template
 await ev(A.p, () => ACT.editTask()); await wait(120);
 await A.p.click('[data-a="tTpl"][data-v="3"]'); await wait(120);
-ok(await A.p.isChecked('#sheetHost input[name="tgh"][value="t_gate"]'), 'the כרמל template is a ghost task already tied to ש״ג');
+ok(await A.p.isChecked('#sheetHost input[name="tok"][value="t_gate"]') && await A.p.isChecked('#sheetHost input[name="tok"][value="t_drive"]') && !(await A.p.isChecked('#sheetHost input[name="tok"][value="t_patrol"]')), 'the כרמל template is a ghost task allowed with ש״ג and תורן, not with סיור');
+ok(await A.p.isVisible('#sheetHost #tS') && await ev(A.p, () => document.getElementById('tS').value === '8'), '…with its own number of people, like any task');
+await A.p.screenshot({ path: path.join(SHOTS, 'task-ghost.png'), fullPage:true });
 await A.p.click('[data-a="saveTask"]'); await wait(150);
-ok(await ev(A.p, () => { const g = tasksList().find(t => t.ghost); return !!g && g.ghost.of[0] === 't_gate' && dayText('2026-11-03').includes('מי שתופס ש״ג תופס גם כרמל'); }), '…saved, and the WhatsApp text says "מי שתופס ש״ג תופס גם כרמל"');
+await A.p.click('[data-a="genGo"] >> nth=0'); await wait(300);
+ok(await ev(A.p, () => { const g = tasksList().find(t => t.ghost), sl = S.rosters['2026-11-03'].slots.find(x => x.t === g.id), line = dayText('2026-11-03').split('*כרמל*\n')[1].split('\n')[0];
+  return !!sl && sl.p.filter(Boolean).length > 0 && sl.p.filter(Boolean).every(id => line.includes(nm(id))); }), '…saved, generated, and the WhatsApp text lists who is in כרמל');
 // company task: a part per platoon
 await ev(A.p, () => ACT.editTask()); await wait(120);
 await A.p.click('[data-a="tTpl"][data-v="7"]'); await wait(150);
@@ -137,6 +141,23 @@ await A.p.screenshot({ path: path.join(SHOTS, 'roster-kinds.png'), fullPage:true
 await A.p.click('.task-card [data-a="slot"] >> nth=0'); await wait(150);
 ok(/בלי משמרות היום|כבר/.test(await A.p.locator('#sheetHost .cand >> nth=0').innerText()), 'the replacement list says who has no shift that day: ' + (await A.p.locator('#sheetHost .cand >> nth=0').innerText()).split('\n').slice(-1)[0]);
 await ev(A.p, () => closeSheet());
+// take a soldier out of a seat; "ג׳נרט מחדש" fills it with someone else
+const outSeat = await ev(A.p, () => { const r = S.rosters['2026-11-03'], si = r.slots.findIndex(x => x.t === 't_obs' && x.s === 8); return [si, r.slots[si].p[1]]; });
+await A.p.click(`.task-card [data-a="slot"][data-si="${outSeat[0]}"][data-pi="1"]`); await wait(150);
+await A.p.click('#sheetHost >> text=הוצאה מהעמדה'); await wait(150);
+ok(await ev(A.p, ([si]) => S.rosters['2026-11-03'].slots[si].p[1] === null, outSeat) && await A.p.isVisible(`.chip.empty[data-si="${outSeat[0]}"][data-pi="1"]`), 'a soldier can be taken out of a seat, which stays empty');
+await A.p.click('[data-a="genDay"]'); await wait(300);
+ok(await ev(A.p, ([si, out]) => { const p = S.rosters['2026-11-03'].slots[si].p[1]; return !!p && p !== out; }, outSeat), '…and "ג׳נרט מחדש" fills it with someone else');
+// a double booking shows red, and sending warns but still allows
+const dbl = await ev(A.p, () => { const r = S.rosters['2026-11-03'], a = r.slots.findIndex(x => x.t === 't_patrol' && x.s === 6), b = r.slots.findIndex(x => x.t === 't_obs' && x.s === 8); return [b, r.slots[a].p[0]]; });
+await ev(A.p, ([si, pid]) => assign('2026-11-03', si, 0, pid), dbl); await wait(200);
+ok(await A.p.isVisible(`.chip.clash[data-si="${dbl[0]}"][data-pi="0"]`) && await A.p.isVisible('.pill.clash'), 'a soldier in two tasks at once is shown in red');
+await A.p.click('[data-a="copyDay"]'); await wait(150);
+ok(await A.p.isVisible('text=לפני השליחה') && await A.p.isVisible('.issue.clash'), 'sending to WhatsApp first lists double bookings, short rest and empty seats');
+await A.p.screenshot({ path: path.join(SHOTS, 'send-check.png') });
+await A.p.click('[data-a="copyDayGo"]'); await wait(150);
+ok(!(await A.p.isVisible('text=לפני השליחה')), '…and "לשלוח בכל זאת" sends anyway');
+await ev(A.p, ([si]) => { const r = JSON.parse(JSON.stringify(S.rosters['2026-11-03'])); setSeat(r.slots[si], 0, null); put('rosters/2026-11-03', r); genDates(['2026-11-03']); }, dbl); await wait(200);
 // quick sheet from the "by person" view
 await ev(A.p, () => { UI.rosterBy = 'person'; render(); }); await wait(150);
 const qp = await A.p.getAttribute('table [data-a="quick"] >> nth=-1', 'data-v');

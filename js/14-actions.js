@@ -25,10 +25,11 @@ const ACT = {
   genDay: v => genDates([v]),
   genDates: v => genDates(v.split(",").filter(Boolean)),
   genBlockAsk: v => { const ds = blockDutyDays(v); openSheet(`<h3>ג׳ינרוט כל הסבב</h3><p>ייווצר שבצ״ק ל-${ds.length} ימים: ${esc(fmtDays(ds))}. שיבוצים שנערכו ידנית נשמרים, כל השאר מתחלף.</p><div class="sheet-acts"><button class="btn primary" data-a="genDates" data-v="${ds.join(",")}">ג׳נרט</button><span class="sp"></span><button class="btn" data-a="closeSheet">ביטול</button></div>`); },
-  copyDay: v => copyText(dayText(v)),
+  copyDay: v => copyDayCheck(v),
+  copyDayGo: v => { closeSheet(); copyText(dayText(v)); },
   slot: (v, el) => openSlot(v, Number(el.dataset.si), Number(el.dataset.pi)),
   assign: (v, el) => assign(v, Number(el.dataset.si), Number(el.dataset.pi), el.dataset.pid),
-  unlock: (v, el) => { const r = JSON.parse(JSON.stringify(S.rosters[v])); r.slots[Number(el.dataset.si)].lock = false; put("rosters/" + v, r); closeSheet(); toast("הנעילה בוטלה — ג׳ינרוט הבא יחליף"); },
+  unlock: (v, el) => { const r = JSON.parse(JSON.stringify(S.rosters[v])), sl = r.slots[Number(el.dataset.si)]; seatLocks(sl)[Number(el.dataset.pi) || 0] = false; sl.lock = sl.lk.some(Boolean); put("rosters/" + v, r); closeSheet(); toast("הנעילה בוטלה. בג׳נרט הבא העמדה יכולה להשתנות"); },
   // insights
   runChk: () => runCheck(),
   setWeekend: (v, el) => { updPerson(el.dataset.pid, p => { const a = (p.absences || []).find(x => x.id === el.dataset.aid); if (a){ a.from = v; a.to = addDays(v, 1); a.status = "fixed"; } }); toast("סופ״ש נקבע"); },

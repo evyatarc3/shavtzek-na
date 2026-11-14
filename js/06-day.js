@@ -40,7 +40,7 @@ function vDay(ctx){
       <div class="list">${act.map(tk => { const s = taskShape(tk);
         return `<button class="li" data-a="editTask" data-v="${tk.id}"><span class="tbar" style="background:${esc(tk.color || "var(--accent)")};height:34px"></span>
           <div class="main"><div class="n">${esc(tk.name)}</div><div class="s">${s.size} חיילים · ${s.hours === 24 ? "כל היממה" : s.hours + " ש׳"} · משמרות של ${s.len} ש׳${s.teams > 1 ? ` · ${s.teams} צוותים מתחלפים` : ""}</div></div>
-          <div class="need"><b class="num">${taskNeed(tk)}</b><span>צריך</span></div></button>`; }).join("")}
+          ${isGhost(tk) ? `<div class="need"><b class="num">${s.size}</b><span>במקביל</span></div>` : `<div class="need"><b class="num">${taskNeed(tk)}</b><span>צריך</span></div>`}</button>`; }).join("")}
         <div class="li tot"><div class="main"><div class="n">סה״כ נדרשים</div><div class="s">צוותים מתחלפים = כדי שלכל אחד תהיה מנוחה בין משמרות</div></div><div class="need"><b class="num">${x.need}</b></div></div>
       </div></section>`;
   }

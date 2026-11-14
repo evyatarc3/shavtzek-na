@@ -387,3 +387,15 @@ td.g-none .ic{color:var(--muted);font-weight:400}
 .qslot.bad{opacity:.7}
 .fld input[type=checkbox],.fld input[type=radio]{width:auto;min-height:0;padding:0}
 .task-card.ghost .ppl{padding-top:6px}
+/* roster issues: red = two tasks at once, yellow = short rest */
+.chip.clash{background:var(--crit-soft,#fde3e3);border-color:var(--crit,#c0392b);color:var(--crit,#c0392b)}
+.chip.tight{background:var(--warn-soft,#fff3cd);border-color:var(--warn,#b7791f)}
+.pill.clash{background:var(--crit-soft,#fde3e3);color:var(--crit,#c0392b)}
+.pill.tight{background:var(--warn-soft,#fff3cd);color:var(--warn,#b7791f)}
+.issue{border-radius:10px;padding:10px 12px;line-height:1.5}
+.issue ul{margin:6px 0 0;padding-inline-start:18px}
+.issue.crit{background:var(--crit-soft,#fde3e3)}
+.issue.clash{background:var(--crit-soft,#fde3e3);border-inline-start:4px solid var(--crit,#c0392b)}
+.issue.tight{background:var(--warn-soft,#fff3cd);border-inline-start:4px solid var(--warn,#b7791f)}
+.chip.lock::after{content:"🔒";font-size:10px;margin-inline-start:3px}
+.issue .ltr{white-space:nowrap}

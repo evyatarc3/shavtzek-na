@@ -1,6 +1,6 @@
 /* שבצ״ק נא · offline cache. Every file of the app is kept on the phone, so it opens with no signal.
    VERSION and ASSETS are written by `node tools/stamp.mjs`; run it after changing any file. */
-const VERSION = "eb40f0937971";
+const VERSION = "d8fa6bd35f25";
 const ASSETS = [
   "./",
   "index.html",

@@ -71,7 +71,12 @@ function tasksList(){ return Object.values(S.tasks).sort((a,b) => (a.order ?? 99
 /* Task kinds: regular (size/cmd/needs per shift), company (t.parts: a part per platoon, each with its own
    size/cmd/needs) and ghost (t.ghost = {of:[task ids], note}: whoever holds those tasks holds this one too;
    no slots, no demand, no load). t.dates (one-time dates) replaces t.days when set. */
+/* ghost ("רפאים") task: its own seats, but its people are not taken by it. They may hold the tasks in ghost.ok at
+   the same time (e.g. כרמל with ש״ג and תורן, not with סיור); it needs no rest, adds no load, caps or demand. */
 const isGhost = t => !!(t && t.ghost);
+const ghostOk = t => (t && t.ghost && (t.ghost.ok || t.ghost.of)) || [];
+/* may one person hold tasks a and b at the same time? only a ghost task and what it allows */
+const parOK = (a, b) => !!a && !!b && ((isGhost(a) && ghostOk(a).includes(b.id)) || (isGhost(b) && ghostOk(b).includes(a.id)));
 const taskParts = t => (t && Array.isArray(t.parts) && t.parts.length) ? t.parts : null;
 function taskComp(t){
   const parts = taskParts(t);
@@ -84,26 +89,36 @@ function taskPlatoons(t){
   const s = new Set(); for (const pt of parts) (pt.pl ? [Number(pt.pl)] : (t.platoons || jointPl())).forEach(n => s.add(Number(n))); return [...s];
 }
 const taskOnDay = (t, d) => (t.dates && t.dates.length) ? t.dates.includes(d) : (t.days || [0,1,2,3,4,5,6]).includes(dow(d));
-function taskActive(t, d){ return !isGhost(t) && taskOnDay(t, d) && taskPlatoons(t).some(pl => platoonIn(pl, d)); }
-/* ghost tasks riding on a host that runs that day */
-function ghostsOn(d){ return tasksList().filter(g => isGhost(g) && (g.ghost.of || []).some(id => S.tasks[id] && taskActive(S.tasks[id], d))); }
-function ghostLine(g){ const hosts = (g.ghost.of || []).map(id => (S.tasks[id] || {}).name).filter(Boolean); return (g.ghost.note || "").trim() || `מי שתופס ${hosts.join(" או ")} תופס גם ${g.name}`; }
+function taskActive(t, d){ return taskOnDay(t, d) && taskPlatoons(t).some(pl => platoonIn(pl, d)); }
+const parNames = t => ghostOk(t).map(id => (S.tasks[id] || {}).name).filter(Boolean);
+/* the first ghost version mirrored its hosts ({ghost:{of}}, no seats). Turn those into ghost tasks with their own
+   seats: same hours and days as the first host, as many people as the hosts had per shift */
+function migrateTasks(){
+  for (const t of Object.values(S.tasks)) if (t && t.ghost && t.ghost.of && !t.ghost.ok){
+    const hosts = t.ghost.of.map(id => S.tasks[id]).filter(Boolean), h = hosts[0] || {};
+    const u = Object.assign({}, t, { ghost: { ok: t.ghost.of.slice(), note: t.ghost.note || "" },
+      size: Math.max(1, hosts.reduce((a, x) => a + (taskParts(x) ? 0 : Number(x.size) || 1), 0)), cmd: 0, needs: [], weight: 0,
+      start: h.start ?? 0, len: h.len ?? 24, hours: h.hours ?? 24, days: (h.days && h.days.length) ? h.days.slice() : [0,1,2,3,4,5,6],
+      dates: (h.dates || []).slice(), platoons: h.id ? taskPlatoons(h) : jointPl() });
+    put("tasks/" + t.id, u);
+  }
+}
 /* A task runs `hours` a day (max 24) starting at `start`, split into shifts of `len` hours.
    Older records only have `count`; hours = count × len, capped at 24. */
 function taskShape(t){
   const len = Math.max(1, Math.min(24, Number(t.len) || 8));
   const hours = Math.max(1, Math.min(24, Number(t.hours) || (Number(t.count) || 1) * len));
   const count = Math.ceil(hours / len);
-  const rest = t.rest ?? settings().minRest;
+  const rest = isGhost(t) ? 0 : (t.rest ?? settings().minRest);
   const teams = Math.max(1, Math.min(count, Math.ceil((len + rest) / len)));   // crews that rotate so each gets its rest
-  return { len, hours, count, rest, teams, start: Number(t.start) || 0, size: isGhost(t) ? 0 : taskComp(t).size };
+  return { len, hours, count, rest, teams, start: Number(t.start) || 0, size: taskComp(t).size };
 }
 function taskMult(t){ return taskShape(t).teams; }
 function taskNeed(t){ const s = taskShape(t); return s.size * s.teams; }
 function taskShiftsText(t){ const s = taskShape(t); const out = []; for (let i = 0; i < s.count; i++){ const a = s.start + i * s.len, b = a + Math.min(s.len, s.hours - i * s.len); out.push(hh(a) + "–" + hh(b)); } return out; }
 function demand(d){
   let need = 0, cmd = 0; const tags = {};
-  for (const t of tasksList()) if (taskActive(t, d)){
+  for (const t of tasksList()) if (taskActive(t, d) && !isGhost(t)){   // a ghost task's people are counted elsewhere
     const m = taskMult(t), c = taskComp(t); need += c.size * m; cmd += c.cmd * m;
     for (const n of c.needs) if (n.tag) tags[n.tag] = (tags[n.tag] || 0) + (n.count || 1) * m;
   }
@@ -169,7 +184,7 @@ function ruleMaps(){
   }
   return R;
 }
-function slotLoad(t, sl){ const w = t ? (t.weight ?? 1) : 1; return sl.len * w + (sl.night ? sl.len * 0.5 * w : 0); }
+function slotLoad(t, sl){ if (isGhost(t)) return 0; const w = t ? (t.weight ?? 1) : 1; return sl.len * w + (sl.night ? sl.len * 0.5 * w : 0); }
 
 /* ================= חוקת משימות (task rulebook) ================= */
 /* Per task: who may serve (t.who), who is exempt (t.exempt), fixed queue (t.queue), rest after it (t.rest).
@@ -177,7 +192,7 @@ function slotLoad(t, sl){ const w = t ? (t.weight ?? 1) : 1; return sl.len * w +
    General (settings): rest after a night shift, caps per day / week / nights a week. */
 const WEEK_MEMO = new Map();
 const weekOf = d => { let w = WEEK_MEMO.get(d); if (w === undefined){ w = addDays(d, -dow(d)); WEEK_MEMO.set(d, w); } return w; };
-function restAfter(t, sl){ const s = settings(), base = (t && t.rest != null) ? t.rest : s.minRest; return sl.night ? Math.max(base, s.restAfterNight || 0) : base; }
+function restAfter(t, sl){ if (isGhost(t)) return 0; const s = settings(), base = (t && t.rest != null) ? t.rest : s.minRest; return sl.night ? Math.max(base, s.restAfterNight || 0) : base; }
 function exemptionsOn(p, d){ return (p.exempt || []).filter(x => !x.until || d <= x.until); }
 /* rulebook reasons this person may not take this slot (static: qualifications and exemptions) */
 function ruleReasons(p, t, sl, d){
@@ -213,12 +228,15 @@ function restOK(st, pid, sl, rest, skipKey){
   }
   return true;
 }
+/* a seat is locked when it was set by hand: per seat (sl.lk[i]). A slot locked as a whole (sl.lock with no seat
+   marked: older rosters, or a phone with an older version) locks every filled seat */
+const seatLocked = (sl, i) => !!(sl && sl.p && sl.p[i]) && (!!(sl.lk && sl.lk[i]) || (!!sl.lock && !(sl.lk || []).some(Boolean)));
 function generate(dates, opt = {}){
   const c = cfg(), R = ruleMaps(), excl = opt.exclude || new Set();
   const all = people().filter(p => !excl.has(p.id));
   const byId = Object.fromEntries(all.map(p => [p.id, p]));
   dates = [...new Set(dates)].sort(); const set = new Set(dates);
-  const st = { iv:{}, load:{}, nightN:{}, perDay:{}, perWeek:{}, nights:{}, last:{}, f:{}, w:{} };
+  const st = { iv:{}, piv:{}, parN:{}, load:{}, nightN:{}, perDay:{}, perWeek:{}, nights:{}, last:{}, f:{}, w:{} };
   if (!dates.length) return {};
   const weeks = new Set(dates.map(weekOf)), lo = addDays(dates[0], -2), hi = addDays(dates[dates.length - 1], 2);
   const histDays = [];
@@ -229,8 +247,13 @@ function generate(dates, opt = {}){
       for (const sl of (r.slots || [])){
         const t = S.tasks[sl.t];
         for (const pid of (sl.p || [])) if (pid){
+          if (isGhost(t)){   // ghost seats: only who-was-it-last (fairness) and clashes near these dates
+            st.parN[t.id + "|" + pid] = (st.parN[t.id + "|" + pid] || 0) + 1;
+            if (dk >= lo && dk <= hi) (st.piv[pid] = st.piv[pid] || []).push({ S: di * 24 + sl.s, E: di * 24 + sl.s + sl.len, t: t.id });
+            continue;
+          }
           st.load[pid] = (st.load[pid] || 0) + slotLoad(t, sl); if (sl.night) st.nightN[pid] = (st.nightN[pid] || 0) + 1;
-          if (dk >= lo && dk <= hi) (st.iv[pid] = st.iv[pid] || []).push({ S: di * 24 + sl.s, E: di * 24 + sl.s + sl.len, R: restAfter(t, sl) });
+          if (dk >= lo && dk <= hi) (st.iv[pid] = st.iv[pid] || []).push({ S: di * 24 + sl.s, E: di * 24 + sl.s + sl.len, R: restAfter(t, sl), t: sl.t });
           if (weeks.has(wk)){ st.perWeek[wk + pid] = (st.perWeek[wk + pid] || 0) + 1; if (sl.night) st.nights[wk + pid] = (st.nights[wk + pid] || 0) + 1; }
           if (dk < dates[0] && t) st.last[t.id + "|" + pid] = Math.max(st.last[t.id + "|" + pid] ?? -1e9, di * 24 + sl.s);
         }
@@ -241,15 +264,16 @@ function generate(dates, opt = {}){
   const pres = {}; for (const d of histDays.concat(dates)) for (const p of all) if (present(p, d)) pres[p.id] = (pres[p.id] || 0) + 1;
   const pv = Object.values(pres), P = pv.length ? pv.reduce((a, b) => a + b, 0) / pv.length : 1;
   for (const p of all){ st.f[p.id] = P / Math.max(1, pres[p.id] || 0); st.w[p.id] = cmdLike(p) ? FAIR.cmdW : 1; }
-  // seats locked by hand on these dates: booked before anything else
-  const locked = {};
+  // what was there before on these dates: seats set by hand are booked before anything else; people taken out of a
+  // seat by hand (sl.x) are not put back into it
+  const prevBy = {};
   for (const d of dates){
     const prev = opt.fresh ? null : S.rosters[d]; if (!prev) continue;
-    const keys = new Set(buildSlots(d).map(x => x.k));
-    for (const sl of (prev.slots || [])) if (sl.lock && keys.has(sl.k)){
-      locked[d + "|" + sl.k] = sl;
-      const t = S.tasks[sl.t], di = diffDays(c.lineStart, d), abs = Object.assign({}, sl, { S: di * 24 + sl.s, E: di * 24 + sl.s + sl.len });
-      for (const pid of (sl.p || [])) if (pid && byId[pid]) bookSeat(st, pid, t, abs, d, d + "|" + sl.k);
+    const keys = new Set(buildSlots(d).map(x => x.k)), di = diffDays(c.lineStart, d);
+    for (const sl of (prev.slots || [])) if (keys.has(sl.k)){
+      prevBy[d + "|" + sl.k] = sl;
+      const t = S.tasks[sl.t], abs = Object.assign({}, sl, { S: di * 24 + sl.s, E: di * 24 + sl.s + sl.len });
+      (sl.p || []).forEach((pid, i) => { if (pid && byId[pid] && seatLocked(sl, i)) (isGhost(t) ? bookPar : bookSeat)(st, pid, t, abs, d, d + "|" + sl.k); });
     }
   }
   // fixed-queue slots ahead: the people next in line are kept free for them where possible
@@ -257,15 +281,19 @@ function generate(dates, opt = {}){
   for (const d of dates){ built[d] = buildSlots(d); for (const x of built[d]){ const t = S.tasks[x.t]; if (t.queue && t.queue.on) st.qs.push({ t: t.id, S: x.S }); } }
   const result = {};
   for (const d of dates){
-    const slots = built[d].map(sl => fillSlot(sl, d, all, byId, R, st, locked[d + "|" + sl.k]));
+    // regular slots now; a ghost task's seats wait until everyone's real shifts are known
+    const slots = built[d].map(sl => isGhost(S.tasks[sl.t]) ? null : fillSlot(sl, d, all, byId, R, st, prevBy[d + "|" + sl.k]));
     result[d] = { date: d, slots, gen: Date.now() };
   }
-  if (opt.polish !== false) balanceRoster(result, dates, all, byId, R, st);
+  if (opt.polish !== false) balanceRoster(result, dates, all, byId, R, st, built);
+  for (const d of dates){
+    built[d].forEach((sl, i) => { if (!result[d].slots[i]) result[d].slots[i] = fillSlot(sl, d, all, byId, R, st, prevBy[d + "|" + sl.k]); });
+  }
   return result;
 }
 function bookSeat(st, id, t, sl, d, key){
   const wk = weekOf(d);
-  (st.iv[id] = st.iv[id] || []).push({ S: sl.S, E: sl.E, R: restAfter(t, sl), key });
+  (st.iv[id] = st.iv[id] || []).push({ S: sl.S, E: sl.E, R: restAfter(t, sl), key, t: t.id });
   st.load[id] = (st.load[id] || 0) + slotLoad(t, sl); if (sl.night) st.nightN[id] = (st.nightN[id] || 0) + 1;
   st.perDay[d + id] = (st.perDay[d + id] || 0) + 1; st.perWeek[wk + id] = (st.perWeek[wk + id] || 0) + 1;
   if (sl.night) st.nights[wk + id] = (st.nights[wk + id] || 0) + 1;
@@ -277,7 +305,19 @@ function unbookSeat(st, id, t, sl, d, key){
   st.perDay[d + id] = (st.perDay[d + id] || 0) - 1; st.perWeek[wk + id] = (st.perWeek[wk + id] || 0) - 1;
   if (sl.night) st.nights[wk + id] = (st.nights[wk + id] || 0) - 1;
 }
-const WHY_TXT = { out:"לא בפנים", unit:"", rest:"במנוחה", rule:"לפי החוקה", cap:"הגיעו לתקרה", pair:"אילוץ זוגות", busy:"" };
+/* a ghost seat: no load, rest, day or week count; only what may overlap it, and how often each person had it */
+function bookPar(st, id, t, sl, d, key){
+  (st.piv[id] = st.piv[id] || []).push({ S: sl.S, E: sl.E, key, t: t.id });
+  st.parN[t.id + "|" + id] = (st.parN[t.id + "|" + id] || 0) + 1;
+}
+/* would a seat of task t at [sl.S, sl.E) clash with this person's other seats (regular or ghost)? */
+function parClash(st, pid, t, sl){
+  if (isGhost(t)) for (const o of (st.iv[pid] || [])) if (o.S < sl.E && sl.S < o.E && !parOK(t, S.tasks[o.t])) return true;
+  for (const o of (st.piv[pid] || [])) if (o.S < sl.E && sl.S < o.E && !parOK(t, S.tasks[o.t])) return true;
+  return false;
+}
+
+const WHY_TXT = { out:"לא בפנים", unit:"", rest:"במנוחה", rule:"לפי החוקה", cap:"הגיעו לתקרה", pair:"אילוץ זוגות", clash:"במשימה אחרת באותה שעה", busy:"" };
 /* why this person can't take this seat (static rules, rest, caps), or null. `skip` is a seat they are leaving */
 function staticBlock(p, t, sl, d, R){
   if (p.noAuto) return "busy";
@@ -291,10 +331,12 @@ function staticBlock(p, t, sl, d, R){
 }
 function seatBlock(p, t, sl, d, R, st, chosen, skip){
   const s = settings(), wk = weekOf(d);
-  if (chosen.includes(p.id)) return "busy";
+  if (chosen.includes(p.id) || (sl.x && sl.x.includes(p.id))) return "busy";
   const memo = st.sb || (st.sb = new Map()), mk = p.id + "|" + d + "|" + sl.k;
   let sb = memo.get(mk); if (sb === undefined){ sb = staticBlock(p, t, sl, d, R); memo.set(mk, sb); }
   if (sb) return sb;
+  if (parClash(st, p.id, t, sl)) return "clash";
+  if (isGhost(t)){ for (const g of R.apart) if (g.has(p.id) && chosen.some(c => c !== p.id && g.has(c))) return "pair"; return null; }
   if (!restOK(st, p.id, sl, restAfter(t, sl), skip && skip.key)) return "rest";
   const sd = skip && skip.d === d ? 1 : 0, sw = skip && weekOf(skip.d) === wk ? 1 : 0, sn = sw && (skip.sl || skip).night ? 1 : 0;
   const cap = capOf(R, p.id);
@@ -304,16 +346,18 @@ function seatBlock(p, t, sl, d, R, st, chosen, skip){
   for (const g of R.apart) if (g.has(p.id) && chosen.some(c => c !== p.id && g.has(c))) return "pair";
   return null;
 }
-function fillSlot(sl, d, all, byId, R, st, lockedSlot){
-  const t = S.tasks[sl.t], comp = slotComp(t, sl), key = d + "|" + sl.k;
+function fillSlot(sl, d, all, byId, R, st, prev){
+  const t = S.tasks[sl.t], comp = slotComp(t, sl), key = d + "|" + sl.k, par = isGhost(t);
   const chosen = [], warns = [];
   const extra = { }; if (sl.part){ extra.part = sl.part; extra.pl = sl.pl; }
-  if (lockedSlot){
-    // already booked in generate(); the fixed queue still needs to know it was served
-    for (const id of (lockedSlot.p || [])) if (id) st.last[t.id + "|" + id] = sl.S;
-    const p = (lockedSlot.p || []).slice(0, sl.size); while (p.length < sl.size) p.push(null);
-    return Object.assign({ k: sl.k, t: sl.t, s: sl.s, len: sl.len, night: sl.night, p, lock: true, w: [] }, extra);
-  }
+  // seats set by hand stay where they are (already booked in generate)
+  const seat = Array(sl.size).fill(null), lk = Array(sl.size).fill(false);
+  if (prev) (prev.p || []).forEach((id, i) => {
+    if (!seatLocked(prev, i) || !byId[id] || chosen.includes(id)) return;
+    const j = i < sl.size && !seat[i] ? i : seat.indexOf(null); if (j < 0) return;
+    seat[j] = id; lk[j] = true; chosen.push(id); st.last[t.id + "|" + id] = sl.S;
+  });
+  const xs = (prev && prev.x || []).filter(Boolean); if (xs.length){ extra.x = xs; sl = Object.assign({}, sl, { x: xs }); }
   const why = p => seatBlock(p, t, sl, d, R, st, chosen);
   const elig = p => !why(p);
   const tagged = new Set(comp.needs.map(n => n.tag));
@@ -327,6 +371,7 @@ function fillSlot(sl, d, all, byId, R, st, lockedSlot){
   const q = t.queue && t.queue.on ? t.queue.order || [] : null;
   const qIdx = p => { const i = q.indexOf(p.id); return i < 0 ? q.length + 1 : i; };
   const score = q ? (p => { const last = st.last[t.id + "|" + p.id]; return (last == null ? -1e9 : last) + qIdx(p) * 1e-3; })
+    : par ? (p => (st.parN[t.id + "|" + p.id] || 0) * (st.f[p.id] || 1) * 10 + (st.load[p.id] || 0) * (st.f[p.id] || 1) * 0.01 + hash(p.id + sl.k + d))
     : ((p, seat) => (st.load[p.id] || 0) * (st.f[p.id] || 1) * (st.w[p.id] || 1)
       + FAIR.day * (st.perDay[d + p.id] || 0) + (reserved.has(p.id) ? 60 : 0)
       + (seat !== "cmd" && isCmd(p) ? 4 : 0) + (seat !== "cmd" && isCmdP(p) ? 1.5 : 0)
@@ -363,9 +408,12 @@ function fillSlot(sl, d, all, byId, R, st, lockedSlot){
     if (!parts.length && comp.pl && !all.some(p => p.platoon === comp.pl)) parts.push(`אין חיילים ב${plName(comp.pl)}`);
     warns.push(`חסרים ${sl.size - chosen.length}` + (parts.length ? ` · ${parts.join(", ")}` : ""));
   }
-  for (const id of chosen){ bookSeat(st, id, t, sl, d, key); st.last[t.id + "|" + id] = sl.S; }
-  const p = chosen.slice(); while (p.length < sl.size) p.push(null);
-  return Object.assign({ k: sl.k, t: sl.t, s: sl.s, len: sl.len, night: sl.night, p, lock: false, w: warns }, extra);
+  for (const id of chosen){
+    if (seat.includes(id)) continue;   // locked: booked before
+    (par ? bookPar : bookSeat)(st, id, t, sl, d, key); st.last[t.id + "|" + id] = sl.S;
+    seat[seat.indexOf(null)] = id;
+  }
+  return Object.assign({ k: sl.k, t: sl.t, s: sl.s, len: sl.len, night: sl.night, p: seat, lock: lk.some(Boolean), lk, w: warns }, extra);
 }
 /* who the fixed queue of task t would call next (longest since served first, then the queue's order) */
 function queueNow(st, t, d){
@@ -377,15 +425,15 @@ function queueNow(st, t, d){
    whenever that lowers  Σ ω·load² + wNight·Σ f·nights² + wDay·Σ (shifts per day)²  (ω, f: presence and role factors).
    Never touches locked seats, fixed-queue tasks, "together" pairs or a seat that covers a "must" rule,
    and keeps every slot's commanders and פק״לים. */
-function balanceRoster(res, dates, all, byId, R, st){
+function balanceRoster(res, dates, all, byId, R, st, built){
   const c = cfg(), t0 = Date.now(), seats = [], mine = {};
   const mustIds = new Set(); Object.values(R.must).forEach(ps => ps.forEach(pool => pool.forEach(id => mustIds.add(id))));
   for (const d of dates){
     const di = diffDays(c.lineStart, d);
     res[d].slots.forEach((sl, si) => {
-      const t = S.tasks[sl.t]; if (!t || sl.lock || (t.queue && t.queue.on)) return;
+      const t = sl && S.tasks[sl.t]; if (!t || isGhost(t) || (t.queue && t.queue.on)) return;
       const abs = Object.assign({}, sl, { S: di * 24 + sl.s, E: di * 24 + sl.s + sl.len });
-      sl.p.forEach((pid, pi) => { const seat = { d, di, si, pi, t, sl: abs, key: d + "|" + sl.k, x: slotLoad(t, sl) }; seats.push(seat); if (pid) (mine[pid] = mine[pid] || []).push(seat); });
+      sl.p.forEach((pid, pi) => { if (seatLocked(sl, pi)) return; const seat = { d, di, si, pi, t, sl: abs, key: d + "|" + sl.k, x: slotLoad(t, sl) }; seats.push(seat); if (pid) (mine[pid] = mine[pid] || []).push(seat); });
     });
   }
   const occ = seat => res[seat.d].slots[seat.si].p[seat.pi];

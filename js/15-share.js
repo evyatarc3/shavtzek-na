@@ -89,7 +89,7 @@ function applyPlan(plan){
   for (const [path, o] of plan.add.concat(plan.upd)) put(path, o, { keepTime:true });
   for (const [path, t] of plan.del) put(path, null, { t });
   for (const [path, t] of Object.entries(plan.tomb)) S.tomb[path] = Math.max(S.tomb[path] || 0, t);
-  persistLocal();
+  migrateTasks(); persistLocal();
   return plan.add.length + plan.upd.length + plan.del.length + (plan.cfg ? 1 : 0);
 }
 /* replace this phone's line with the incoming one (a different line, or a first copy) */
@@ -97,7 +97,7 @@ function replaceWith(inc){
   S.config = null; for (const c of COLLS) S[c] = {}; S.tomb = Object.assign({}, inc.tomb || {});
   if (inc.config) put("line/config", inc.config, { keepTime:true });
   for (const c of COLLS) for (const [id, o] of Object.entries(inc[c] || {})) put(c + "/" + id, o, { keepTime:true });
-  persistLocal();
+  migrateTasks(); persistLocal();
 }
 
 /* ---- view ---- */

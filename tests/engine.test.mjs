@@ -147,18 +147,13 @@ console.log('manual seats are planned around');
   const gapsOk = mine.every((x, i) => !i || x.S - (mine[i - 1].S + mine[i - 1].len) >= 8);
   ok(gapsOk, `every other seat of that soldier keeps 8 hours of rest from the forced ones, before and after (${mine.length} seats)`);
 }
-console.log('task kinds');
+console.log('company task');
 {
   const { run } = await app(f => {
-    f.tasks.t_carmel = { id:'t_carmel', name:'כרמל', ghost:{ of:['t_gate'], note:'' }, days:[], order:9 };
     f.tasks.t_sweep = { id:'t_sweep', name:'סריקה פלוגתית', kind:'mission', start:6, len:4, hours:4, dates:['2026-11-03'], days:[], order:10,
       parts:[ { id:'p1', name:'ציר צפוני', pl:1, size:5, cmd:1, needs:[{ tag:'חובש', count:1 }] }, { id:'p2', name:'אבטחה', pl:2, size:4, cmd:1, needs:[] }, { id:'p3', name:'פיצוץ', pl:3, size:3, cmd:0, needs:[] } ] };
   });
   const d = '2026-11-03', res = JSON.parse(run(`JSON.stringify(generate(["${d}", "2026-11-04"]))`));
-  ok(!res[d].slots.some(s => s.t === 't_carmel') && run(`taskNeed(S.tasks.t_carmel)`) === 0, 'a ghost task adds no seats and no demand');
-  ok(run(`ghostLine(S.tasks.t_carmel)`) === 'מי שתופס ש״ג תופס גם כרמל', 'its default sentence: "מי שתופס ש״ג תופס גם כרמל"');
-  run(`put("rosters/${d}", ${JSON.stringify(res[d])}); CTX = buildCtx();`);
-  ok(run(`dayText("${d}")`).includes('*כרמל*\nמי שתופס ש״ג תופס גם כרמל'), 'the WhatsApp text carries the sentence under the task name');
   const sw = res[d].slots.filter(s => s.t === 't_sweep');
   ok(sw.length === 3 && !res['2026-11-04'].slots.some(s => s.t === 't_sweep'), 'the company task runs only on its date, one slot per part');
   const plOf = id => run(`S.soldiers["${id}"].platoon`);
@@ -168,6 +163,56 @@ console.log('task kinds');
   const p3 = sw.find(s => s.part === 'p3');
   ok(p3.w.some(w => w.includes('אין חיילים במחלקה 3')), 'a part whose platoon has nobody says so: ' + p3.w.join(' · '));
   ok(run(`demand("${d}").need`) === run(`demand("2026-11-04").need`) + 12, 'the company task adds its 12 people to that day\'s demand only');
+}
+console.log('ghost task (כרמל): its own people, who stay free');
+{
+  const carmel = { id:'t_carmel', name:'כרמל', kind:'guard', ghost:{ ok:['t_gate', 't_drive'], note:'' }, size:3, cmd:0, start:6, len:8, hours:8, days:[0,1,2,3,4,5,6], platoons:[1,2], order:9 };
+  const withC = await app(f => { f.tasks.t_carmel = carmel; });
+  const without = await app();
+  const d = '2026-11-03', ds = `["${d}", "2026-11-04"]`;
+  const a = JSON.parse(withC.run(`JSON.stringify(generate(${ds}))`)), b = JSON.parse(without.run(`JSON.stringify(generate(${ds}))`));
+  const reg = r => JSON.stringify(Object.values(r).map(x => x.slots.filter(s => s.t !== 't_carmel').map(s => s.p)));
+  ok(reg(a) === reg(b), 'adding a ghost task changes nobody\'s regular shifts (no rest, load or caps from it)');
+  const car = a[d].slots.filter(s => s.t === 't_carmel');
+  ok(car.length === 1 && car[0].p.filter(Boolean).length === 3, `it has its own seats, filled like any task (${car[0].p.filter(Boolean).length}/3)`);
+  ok(withC.run(`demand("${d}").need`) === without.run(`demand("${d}").need`), 'it adds nothing to the day\'s demand');
+  const others = car[0].p.flatMap(id => a[d].slots.filter(s => s.t !== 't_carmel' && s.p.includes(id) && s.s < 14 && s.s + s.len > 6).map(s => s.t));
+  ok(others.every(t => t === 't_gate' || t === 't_drive'), `its people hold only ש״ג or נהג תורן at the same time, never סיור or תצפית (${others.join(', ') || 'nothing else'})`);
+  // a patrol soldier put into כרמל by hand: the generator keeps him there and plans his patrol elsewhere
+  withC.run(`(() => { for (const [k, r] of Object.entries(generate(${ds}))) put("rosters/" + k, r); })()`);
+  const pat = withC.run(`S.rosters["${d}"].slots.find(s => s.t === "t_patrol" && s.s === 6).p[0]`);
+  withC.run(`(() => { const r = JSON.parse(JSON.stringify(S.rosters["${d}"])); setSeat(r.slots.find(s => s.t === "t_carmel"), 0, "${pat}"); put("rosters/${d}", r); for (const [k, x] of Object.entries(generate(${ds}))) put("rosters/" + k, x); })()`);
+  const after = JSON.parse(withC.run(`JSON.stringify(S.rosters["${d}"].slots.filter(s => s.p.includes("${pat}")).map(s => [s.t, s.s, s.len]))`));
+  ok(after.some(x => x[0] === 't_carmel') && !after.some(x => x[0] === 't_patrol' && x[1] < 14 && x[1] + x[2] > 6), `${withC.run(`nm("${pat}")`)} set into כרמל by hand is no longer in the 06:00 patrol`);
+  withC.run(`CTX = buildCtx()`);
+  const txt = withC.run(`dayText("${d}")`), line = txt.split('*כרמל*\n')[1].split('\n')[0];
+  ok(/^06:00-14:00  \S/.test(line) && line.split(', ').length === 3, 'the WhatsApp text lists who is in כרמל: ' + line);
+  // red: two tasks at once; nothing for כרמל + ש״ג; yellow: short rest
+  const iss = JSON.parse(withC.run(`(() => { const r = JSON.parse(JSON.stringify(S.rosters["${d}"]));
+    const gate = r.slots.find(s => s.t === "t_gate" && s.s === 6), car = r.slots.find(s => s.t === "t_carmel"), pat = r.slots.find(s => s.t === "t_patrol" && s.s === 6), g2 = r.slots.find(s => s.t === "t_gate" && s.s === 14);
+    setSeat(gate, 0, car.p[1]);            // allowed together
+    setSeat(pat, 1, car.p[2]);             // not allowed together
+    setSeat(g2, 0, r.slots.find(s => s.t === "t_gate" && s.s === 10).p[0]);   // 10-14 then 14-18: no rest
+    put("rosters/${d}", r); const x = rosterIssues("${d}"); return JSON.stringify({ red: x.redTxt, yellow: x.yellowTxt.length, redOnCarmelGate: x.red.has(r.slots.indexOf(gate) + "|0"), empty: x.empty }); })()`));
+  ok(iss.red.some(t => t.includes('סיור') && t.includes('כרמל')) && !iss.redOnCarmelGate, `red: a soldier in כרמל and סיור at once (${iss.red.length} double bookings); כרמל with ש״ג is fine`);
+  ok(iss.yellow >= 1, 'yellow: back-to-back gate shifts without rest');
+  // legacy ghost tasks (mirror of a host) become ghost tasks with their own seats
+  const old = await app(f => { f.tasks.t_old = { id:'t_old', name:'כרמל ישן', ghost:{ of:['t_gate'], note:'' }, days:[], size:0, order:9 }; });
+  old.run('migrateTasks()');
+  const m = JSON.parse(old.run('JSON.stringify(S.tasks.t_old)'));
+  ok(m.ghost.ok[0] === 't_gate' && m.size === 1 && m.hours === 24 && m.days.length === 7, 'an old-style ghost task is converted: allowed with ש״ג, as many as the gate, same hours');
+}
+console.log('taking a soldier out of a seat');
+{
+  const { run } = await app();
+  const d = '2026-11-03';
+  run(`(() => { for (const [k, r] of Object.entries(generate(["${d}"]))) put("rosters/" + k, r); })()`);
+  const [keep, out, si] = JSON.parse(run(`(() => { const r = JSON.parse(JSON.stringify(S.rosters["${d}"])), si = r.slots.findIndex(s => s.t === "t_obs" && s.s === 8), sl = r.slots[si];
+    const keep = sl.p[0], out = sl.p[1]; setSeat(sl, 0, keep); setSeat(sl, 1, null); put("rosters/${d}", r); return JSON.stringify([keep, out, si]); })()`));
+  run(`(() => { for (const [k, r] of Object.entries(generate(["${d}"]))) put("rosters/" + k, r); })()`);
+  const sl = JSON.parse(run(`JSON.stringify(S.rosters["${d}"].slots[${si}])`));
+  ok(sl.p[0] === keep && sl.lk[0], 'the seat set by hand stays, locked');
+  ok(sl.p[1] && sl.p[1] !== out, `the emptied seat is filled again on "ג׳נרט מחדש", not with the one taken out (${run(`nm("${out}")`)} → ${run(`nm("${sl.p[1]}")`)})`);
 }
 console.log('encryption');
 {

@@ -91,6 +91,7 @@ async function initStore(){
   // a line gets a stable id so updates from another line can be told apart (no new _t: nothing changed)
   if (S.config && !S.config.lineId){ S.config.lineId = uid("L"); persistNow(); }
   S.loaded = { config:true, soldiers:true, tasks:true, rules:true, rosters:true };
+  if (typeof migrateTasks === "function") migrateTasks();
   scheduleRender();
 }
 function isLoaded(){ return S.loaded.config && S.loaded.soldiers && S.loaded.tasks && S.loaded.rules; }
